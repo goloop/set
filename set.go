@@ -76,12 +76,12 @@ type sortMarker[T any] struct {
 }
 
 // Set is a set of any objects. The set can contain both simple and complex
-// types. It is important to note that the set can only contain either simple
-// or complex types, not both. This information is stored in the 'simple' field
-// where -1 denotes complex objects, 0 denotes that the type hasn't been set
-// yet, and 1 denotes simple objects. The actual elements are stored in a map
-// called 'heap' where the keys are hashed string representations of the
-// objects, and the values are the objects themselves.
+// types. It is important to note that the set can only one specific type.
+// This information is stored in the 'simple' field where -1 denotes complex
+// objects, 0 denotes that the type hasn't been set yet, and 1 denotes simple
+// objects. The actual elements are stored in a map called 'heap' where the
+// keys are hashed string representations of the objects, and the values are
+// the objects themselves.
 type Set[T any] struct {
 	heap   map[string]T // collection of objects
 	simple int          // -1 - complex object, 0 - not set, 1 - simple object
@@ -217,7 +217,7 @@ func (s *Set[T]) Add(items ...T) {
 //	// Remove elements from the set
 //	s.Delete(1, 3)
 //
-//	// Now, the set contains the elements 2 and 4
+//	// Now, the set contains the elements 2 and 4.
 func (s *Set[T]) Delete(items ...T) {
 	for _, v := range items {
 		delete(s.heap, s.toHash(v))
@@ -228,11 +228,11 @@ func (s *Set[T]) Delete(items ...T) {
 //
 // Example usage:
 //
-//	// Define a new set and add some elements
+//	// Define a new set and add some elements.
 //	s := New[int]()
 //	s.Add(1, 2, 3, 4)
 //
-//	// Check if the set contains certain elements
+//	// Check if the set contains certain elements.
 //	containsOne := s.Contains(1)  // returns true
 //	containsFive := s.Contains(5) // returns false
 func (s *Set[T]) Contains(item T) bool {
