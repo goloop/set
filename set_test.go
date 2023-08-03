@@ -567,3 +567,35 @@ func TestSorted(t *testing.T) {
 		t.Errorf("Sorted() = %v, want %v", descending, expectedDesc)
 	}
 }
+
+// TestAppend tests for the Append method.
+func TestAppend(t *testing.T) {
+	s1 := New[int]()
+	s1.Add(1, 2, 3)
+
+	s2 := New[int]()
+	s2.Add(4, 5, 6)
+
+	s1.Append(s2)
+
+	expected := []int{1, 2, 3, 4, 5, 6}
+	if !reflect.DeepEqual(s1.Sorted(), expected) {
+		t.Errorf("Append() = %v, want %v", s1.Sorted(), expected)
+	}
+}
+
+// TestExtend tests for the Extend method.
+func TestExtend(t *testing.T) {
+	s1 := New[int]()
+	s1.Add(1, 2, 3)
+
+	s2 := New[int]()
+	s2.Add(4, 5, 6)
+
+	s1.Extend(s2)
+
+	expected := []int{1, 2, 3, 4, 5, 6}
+	if !reflect.DeepEqual(s1.Sorted(), expected) {
+		t.Errorf("Extend() = %v, want %v", s1.Sorted(), expected)
+	}
+}

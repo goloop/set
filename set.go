@@ -452,3 +452,38 @@ func (s *Set[T]) Sorted(fns ...func(a, b T) bool) []T {
 
 	return result
 }
+
+// Append adds all elements from the provided sets to the current set.
+//
+// Example usage:
+//
+//	s1 := New[int]()
+//	s1.Add(1, 2, 3)
+//
+//	s2 := New[int]()
+//	s2.Add(4, 5, 6)
+//
+//	s1.Append(s2)  // s1 now contains 1, 2, 3, 4, 5, 6
+func (s *Set[T]) Append(sets ...*Set[T]) {
+	for _, set := range sets {
+		for _, v := range set.heap {
+			s.Add(v)
+		}
+	}
+}
+
+// Extend is an alias for Append. It adds all elements from the provided sets
+// to the current set.
+//
+// Example usage:
+//
+//	s1 := New[int]()
+//	s1.Add(1, 2, 3)
+//
+//	s2 := New[int]()
+//	s2.Add(4, 5, 6)
+//
+//	s1.Extend(s2)  // s1 now contains 1, 2, 3, 4, 5, 6
+func (s *Set[T]) Extend(sets ...*Set[T]) {
+	s.Append(sets...)
+}
