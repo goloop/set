@@ -341,7 +341,7 @@ func (s *Set[T]) Difference(set *Set[T]) *Set[T] {
 //	s2 := New[int]()
 //	s2.Add(3, 4, 5)
 //
-//	symmetricDifference := s1.SymmetricDifference(s2)  // symmetricDifference contains 1, 2, 4, 5
+//	symmetricDifference := s1.SymmetricDifference(s2)  // 1, 2, 4, 5
 func (s *Set[T]) SymmetricDifference(set *Set[T]) *Set[T] {
 	result := New[T]()
 	for _, v := range s.heap {
