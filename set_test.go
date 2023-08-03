@@ -586,17 +586,28 @@ func TestAppend(t *testing.T) {
 
 // TestExtend tests for the Extend method.
 func TestExtend(t *testing.T) {
+	// Initialize two sets
 	s1 := New[int]()
 	s1.Add(1, 2, 3)
 
 	s2 := New[int]()
 	s2.Add(4, 5, 6)
 
-	s1.Extend(s2)
+	// Extend s1 with s2
+	s1.Extend([]*Set[int]{s2})
 
+	// Test that the extended set has the correct length
+	if s1.Len() != 6 {
+		t.Errorf("Extend() failed, expected length = %v, got %v", 6, s1.Len())
+	}
+
+	// Test that the extended set contains the correct items
 	expected := []int{1, 2, 3, 4, 5, 6}
+	sort.Ints(expected)
+	sort.Ints(s1.Elements())
 	if !reflect.DeepEqual(s1.Sorted(), expected) {
-		t.Errorf("Extend() = %v, want %v", s1.Sorted(), expected)
+		t.Errorf("Extend() failed, expected elements = %v, got %v",
+			expected, s1.Elements())
 	}
 }
 

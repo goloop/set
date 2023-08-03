@@ -17,7 +17,9 @@ go get github.com/goloop/set
 
 ## Usage
 
-Here's a simple example of how to use the Set package:
+Here's a simple example of how to use the Set package.
+
+### Basic functions
 
 ```go
 package main
@@ -168,7 +170,7 @@ func main() {
 See example [here](https://go.dev/play/p/1yjv4imgOiD).
 
 
-Operations on sets:
+### Operations on set
 
 ```go
 package main
@@ -262,6 +264,69 @@ func main() {
 ```
 
 See example [here](https://go.dev/play/p/pwv3PALIroT).
+
+### Other functions
+
+```go
+package main
+
+import (
+	"fmt"
+
+	"github.com/goloop/set"
+)
+
+// User object.
+type User struct {
+	Name string
+	Age  int
+}
+
+func main() {
+	// Simple set values.
+	a := set.New(1, 3, 5, 7)
+	b := set.New(0, 2, 4, 7)
+	c := set.New(3, 4, 5, 6, 7, 8)
+
+	// Update instance.
+	a.Append(b, c) // a.Extend([]*set.Set[int]{b, c})
+	fmt.Println("Append/Extend:", a.Elements())
+
+	// Return sorted elements.
+	fmt.Println("Sorted:", a.Sorted())
+	fmt.Println("Reverse:", a.Sorted(func(a, b int) bool {
+		return a > b
+	}))
+
+	// Clear.
+	a.Clear()
+	fmt.Println("Cleared:", a.Elements())
+
+	// Complex set values.
+	d := set.New(
+		User{"John", 21},
+		User{"Bob", 27},
+		User{"Maya", 25},
+	)
+
+	fmt.Println("Sorted by Age:", d.Sorted(func(a, b User) bool {
+		return a.Age < b.Age
+	}))
+	fmt.Println("Sorted by Name:", d.Sorted(func(a, b User) bool {
+		return a.Name < b.Name
+	}))
+}
+
+// Output:
+// Append/Extend: [7 4 8 6 1 3 5 2 0]
+// Sorted: [0 1 2 3 4 5 6 7 8]
+// Reverse: [8 7 6 5 4 3 2 1 0]
+// Cleared: []
+// Sorted by Age: [{John 21} {Maya 25} {Bob 27}]
+// Sorted by Name: [{Bob 27} {John 21} {Maya 25}]
+```
+
+See example [here](https://go.dev/play/p/WTiW6_viwrO).
 
 ## Documentation
 You can read more about the Set package and its functions on [Godoc](https://godoc.org/github.com/goloop/set).

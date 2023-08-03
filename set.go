@@ -484,7 +484,7 @@ func (s *Set[T]) Append(sets ...*Set[T]) {
 //	s2.Add(4, 5, 6)
 //
 //	s1.Extend(s2)  // s1 now contains 1, 2, 3, 4, 5, 6
-func (s *Set[T]) Extend(sets ...*Set[T]) {
+func (s *Set[T]) Extend(sets []*Set[T]) {
 	s.Append(sets...)
 }
 
