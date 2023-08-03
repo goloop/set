@@ -487,3 +487,21 @@ func (s *Set[T]) Append(sets ...*Set[T]) {
 func (s *Set[T]) Extend(sets ...*Set[T]) {
 	s.Append(sets...)
 }
+
+// Copy returns a new set with a copy of items in the set.
+// This is useful when you want to copy the set.
+//
+// Example usage:
+//
+//	s := New[int]()
+//	s.Add(1, 2, 3)
+//
+//	copied := s.Copy() // copied contains 1, 2, 3
+func (s *Set[T]) Copy() *Set[T] {
+	result := New[T]()
+	for _, v := range s.heap {
+		result.Add(v)
+	}
+
+	return result
+}

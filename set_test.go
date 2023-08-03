@@ -599,3 +599,23 @@ func TestExtend(t *testing.T) {
 		t.Errorf("Extend() = %v, want %v", s1.Sorted(), expected)
 	}
 }
+
+// TestCopy tests for the Copy method.
+func TestCopy(t *testing.T) {
+	s := New[int]()
+	s.Add(1, 2, 3)
+
+	copied := s.Copy()
+
+	// Check that the copied set contains the same elements as the original set.
+	expected := []int{1, 2, 3}
+	if !reflect.DeepEqual(copied.Sorted(), expected) {
+		t.Errorf("Copy() = %v, want %v", copied.Sorted(), expected)
+	}
+
+	// Check that modifying the original set does not affect the copied set.
+	s.Add(4)
+	if copied.Contains(4) {
+		t.Errorf("Copy() did not create a deep copy")
+	}
+}
