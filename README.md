@@ -20,8 +20,6 @@ go get github.com/goloop/set
 Here's a simple example of how to use the Set package:
 
 ```go
-// You can edit this code!
-// Click here and start typing.
 package main
 
 import (
@@ -104,15 +102,26 @@ func main() {
 	fmt.Println("\nContains:")
 	fmt.Println("iSet: ", iSet.Contains(3), iSet.Contains(10))
 	fmt.Println("sSet: ", sSet.Contains("five"), sSet.Contains("nine"))
-	fmt.Println("cSet: ", cSet.Contains(
-		User{
-			Name: "Natalia",
-			Age:  23,
-			Address: &Address{
-				City: "Chernihiv",
+	fmt.Println("cSet: ",
+		cSet.Contains(
+			User{
+				Name: "John",
+				Age:  21,
+				Address: &Address{
+					City: "Kyiv",
+				},
+			}, // [!] new object here
+		),
+		cSet.Contains(
+			User{
+				Name: "Adam",
+				Age:  23,
+				Address: &Address{
+					City: "Chernihiv",
+				},
 			},
-		}, // [!] new object here
-	))
+		),
+	)
 
 	// Delete.
 	iSet.Delete(1, 2, 4)
@@ -133,6 +142,7 @@ func main() {
 	fmt.Println("cSet: ", cSet.Elements())
 }
 
+
 // Output:
 // Length:
 // iSet:  4
@@ -141,22 +151,117 @@ func main() {
 
 // Elements:
 // iSet:  [1 2 3 4]
-// sSet:  [one two three four five]
+// sSet:  [two three four five one]
 // cSet:  [{John 21 0xc033} {Bob 22 0xc055} {Victoria 23 0xc077}]
 
 // Contains:
 // iSet:  true false
 // sSet:  true false
-// cSet:  false
+// cSet:  true false
 
 // Elements after deletion:
 // iSet:  [3]
-// sSet:  [three five one two]
+// sSet:  [one two three five]
 // cSet:  [{Bob 22 0xc055} {Victoria 23 0xc077}]
 ```
 
-See example [here](https://go.dev/play/p/YXrjFLcbxOo).
+See example [here](https://go.dev/play/p/1yjv4imgOiD).
 
+
+Operations on sets:
+
+```go
+package main
+
+import (
+	"fmt"
+
+	"github.com/goloop/set"
+)
+
+func main() {
+	a := set.New(1, 3, 5, 7)
+	b := set.New(0, 2, 4, 7)
+
+	// Union.
+	c := a.Union(b)
+	fmt.Println("Union:")
+	fmt.Println("a: ", a.Elements())
+	fmt.Println("b: ", b.Elements())
+	fmt.Println("c: ", c.Elements())
+
+	// Intersection.
+	c = a.Intersection(b)
+	fmt.Println("\nIntersection:")
+	fmt.Println("a: ", a.Elements())
+	fmt.Println("b: ", b.Elements())
+	fmt.Println("c: ", c.Elements())
+
+	// Difference.
+	c = a.Difference(b)
+	fmt.Println("\nDifference:")
+	fmt.Println("a: ", a.Elements())
+	fmt.Println("b: ", b.Elements())
+	fmt.Println("c: ", c.Elements())
+
+	// SymmetricDifference.
+	c = a.SymmetricDifference(b)
+	fmt.Println("\nSymmetricDifference:")
+	fmt.Println("a: ", a.Elements())
+	fmt.Println("b: ", b.Elements())
+	fmt.Println("c: ", c.Elements())
+
+	// IsSubset.
+	a = set.New(1, 2, 3)
+	b = set.New(1, 2, 3, 4, 5, 6)
+	fmt.Println("\nSubset:")
+	fmt.Println("a: ", a.Elements())
+	fmt.Println("b: ", b.Elements())
+	fmt.Println("result: ", a.IsSubset(b))
+
+	// IsSuperset.
+	a = set.New(1, 2, 3)
+	b = set.New(1, 2, 3, 4, 5, 6)
+	fmt.Println("\nIsSuperset:")
+	fmt.Println("a: ", a.Elements())
+	fmt.Println("b: ", b.Elements())
+	fmt.Println("result: ", a.IsSuperset(b))
+
+}
+
+// Output:
+// Union:
+// a:  [3 5 7 1]
+// b:  [0 2 4 7]
+// c:  [7 2 4 0 1 3 5]
+
+// Intersection:
+// a:  [1 3 5 7]
+// b:  [7 0 2 4]
+// c:  [7]
+
+// Difference:
+// a:  [7 1 3 5]
+// b:  [0 2 4 7]
+// c:  [1 3 5]
+
+// SymmetricDifference:
+// a:  [1 3 5 7]
+// b:  [0 2 4 7]
+// c:  [4 3 5 1 0 2]
+
+// Subset:
+// a:  [3 1 2]
+// b:  [1 2 3 4 5 6]
+// result:  true
+
+// IsSuperset:
+// a:  [1 2 3]
+// b:  [4 5 6 1 2 3]
+// result:  false
+```
+
+See example [here](https://go.dev/play/p/pwv3PALIroT).
 
 ## Documentation
 You can read more about the Set package and its functions on [Godoc](https://godoc.org/github.com/goloop/set).
