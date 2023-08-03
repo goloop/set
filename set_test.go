@@ -121,6 +121,50 @@ func TestToHashSimple(t *testing.T) {
 	}
 }
 
+// TestToStr tests toStr function.
+func TestToStr(t *testing.T) {
+	tests := []struct {
+		name  string
+		input interface{}
+		want  string
+	}{
+		{
+			name:  "Pointer",
+			input: new(int),
+			want:  "0",
+		},
+		{
+			name:  "NilPointer",
+			input: (*int)(nil),
+			want:  "nil",
+		},
+		{
+			name:  "Interface",
+			input: (interface{})(new(int)),
+			want:  "0",
+		},
+		{
+			name:  "Func",
+			input: func() {},
+			want:  "func() Value",
+		},
+		{
+			name:  "NilFunc",
+			input: (func())(nil),
+			want:  "func:nil",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got := toStr(reflect.ValueOf(test.input))
+			if got != test.want {
+				t.Errorf("toStr(%s) = %s, want %s", test.name, got, test.want)
+			}
+		})
+	}
+}
+
 // TestToHashComplex tests toHash function for complex types.
 func TestToHashComplex(t *testing.T) {
 	tests := []struct {
@@ -346,16 +390,14 @@ func TestLen(t *testing.T) {
 // TestUnion tests for the Union method.
 func TestUnion(t *testing.T) {
 	s1 := New[int]()
-	s1.Add(1, 2, 3)
+	s1.Add(3)
 
-	s2 := New[int]()
-	s2.Add(3, 4, 5)
+	s2 := New[int](0, 5, 7)
 
 	expected := New[int]()
-	expected.Add(1, 2, 3, 4, 5)
+	expected.Add(0, 3, 5, 7)
 
 	result := s1.Union(s2)
-
 	if !reflect.DeepEqual(result, expected) {
 		t.Errorf("Expected %v, but got %v",
 			expected.Elements(), result.Elements())
