@@ -446,7 +446,7 @@ func TestDifference(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		result := tc.set1.Difference(tc.set2)
+		result := tc.set1.Diff(tc.set2)
 		if !reflect.DeepEqual(result, tc.expected) {
 			t.Errorf("Test %s: expected %v, but got %v",
 				tc.name, tc.expected.Elements(), result.Elements())
@@ -477,7 +477,7 @@ func TestSymmetricDifference(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		result := tc.set1.SymmetricDifference(tc.set2)
+		result := tc.set1.Sdiff(tc.set2)
 		if !reflect.DeepEqual(result, tc.expected) {
 			t.Errorf("Test %s: expected %v, but got %v",
 				tc.name, tc.expected.Elements(), result.Elements())
@@ -544,5 +544,26 @@ func TestIsSuperset(t *testing.T) {
 			t.Errorf("Test %s: expected %v, but got %v",
 				tc.name, tc.expected, result)
 		}
+	}
+}
+
+// TestSorted tests for the Sorted method.
+func TestSorted(t *testing.T) {
+	s := New[int]()
+	s.Add(3, 2, 1)
+
+	sorted := s.Sorted()
+
+	// Check that the sorted slice is in ascending order.
+	expected := []int{1, 2, 3}
+	if !reflect.DeepEqual(sorted, expected) {
+		t.Errorf("Sorted() = %v, want %v", sorted, expected)
+	}
+
+	// Test with a comparison function.
+	descending := s.Sorted(func(a, b int) bool { return a > b })
+	expectedDesc := []int{3, 2, 1}
+	if !reflect.DeepEqual(descending, expectedDesc) {
+		t.Errorf("Sorted() = %v, want %v", descending, expectedDesc)
 	}
 }

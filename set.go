@@ -15,6 +15,7 @@ package set
 import (
 	"fmt"
 	"reflect"
+	"sort"
 	"strings"
 )
 
@@ -66,6 +67,12 @@ func New[T any](items ...T) *Set[T] {
 	set.Add(items...) // add items to the set
 
 	return &set
+}
+
+// sortMarker is a helper struct that is used to sort the set.
+type sortMarker[T any] struct {
+	name  string
+	value T
 }
 
 // Set is a set of any objects. The set can contain both simple and complex
@@ -329,6 +336,11 @@ func (s *Set[T]) Difference(set *Set[T]) *Set[T] {
 	return result
 }
 
+// Diff is an alias for Difference.
+func (s *Set[T]) Diff(set *Set[T]) *Set[T] {
+	return s.Difference(set)
+}
+
 // SymmetricDifference returns a new set with items in either
 // the first or second set but not both. This is useful when you want to find
 // items that are unique to each set.
@@ -356,6 +368,11 @@ func (s *Set[T]) SymmetricDifference(set *Set[T]) *Set[T] {
 	}
 
 	return result
+}
+
+// Sdiff is an alias for SymmetricDifference.
+func (s *Set[T]) Sdiff(set *Set[T]) *Set[T] {
+	return s.SymmetricDifference(set)
 }
 
 // IsSubset returns true if all items in the first set exist in the second.
@@ -396,4 +413,42 @@ func (s *Set[T]) IsSubset(set *Set[T]) bool {
 //	isSuperset := s1.IsSuperset(s2)  // isSuperset is true
 func (s *Set[T]) IsSuperset(set *Set[T]) bool {
 	return set.IsSubset(s)
+}
+
+// Sorted returns a new set with items sorted in ascending order.
+// This is useful when you want to sort the items in the set.
+//
+// Example usage:
+//
+//	s := New[int]()
+//	s.Add(3, 2, 1)
+//
+//	sorted := s.Sorted() // sorted contains 1, 2, 3
+func (s *Set[T]) Sorted(fns ...func(a, b T) bool) []T {
+	// Create a temporary slice of sortMarker[T] to hold
+	// the data and sort it.
+	tmp := make([]sortMarker[T], 0, len(s.heap)) // here is the change
+	for k, v := range s.heap {
+		tmp = append(tmp, sortMarker[T]{name: k, value: v})
+	}
+
+	if len(fns) == 0 {
+		sort.Slice(tmp, func(i, j int) bool {
+			return tmp[i].name < tmp[j].name
+		})
+	} else {
+		for _, fn := range fns {
+			sort.Slice(tmp, func(i, j int) bool {
+				return fn(tmp[i].value, tmp[j].value)
+			})
+		}
+	}
+
+	// Create a new slice of T and copy the values over.
+	var result = make([]T, len(tmp))
+	for i, v := range tmp {
+		result[i] = v.value
+	}
+
+	return result
 }
