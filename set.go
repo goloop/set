@@ -505,3 +505,30 @@ func (s *Set[T]) Copy() *Set[T] {
 
 	return result
 }
+
+// Clear removes all items from the set.
+//
+// Example usage:
+//
+//	s := New[int]()
+//	s.Add(1, 2, 3)
+//
+//	s.Clear() // s is now empty
+func (s *Set[T]) Clear() {
+	s.heap = make(map[string]T)
+}
+
+// Overwrite removes all items from the set and adds the provided items.
+//
+// Example usage:
+//
+//		s := New[int]()
+//		s.Add(1, 2, 3)
+//		s.Elements() // returns []int{1, 2, 3}
+//
+//	 s.Overwrite(5, 6, 7) // as s.Clear() and s.Add(5, 6, 7)
+//		s.Elements() // returns []int{5, 6, 7}
+func (s *Set[T]) Overwrite(items ...T) {
+	s.Clear()
+	s.Add(items...)
+}

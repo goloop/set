@@ -607,7 +607,8 @@ func TestCopy(t *testing.T) {
 
 	copied := s.Copy()
 
-	// Check that the copied set contains the same elements as the original set.
+	// Check that the copied set contains the same elements
+	// as the original set.
 	expected := []int{1, 2, 3}
 	if !reflect.DeepEqual(copied.Sorted(), expected) {
 		t.Errorf("Copy() = %v, want %v", copied.Sorted(), expected)
@@ -617,5 +618,45 @@ func TestCopy(t *testing.T) {
 	s.Add(4)
 	if copied.Contains(4) {
 		t.Errorf("Copy() did not create a deep copy")
+	}
+}
+
+// TestClear tests for the Clear method.
+func TestClear(t *testing.T) {
+	// Initialize a new set
+	s := New[int]()
+	s.Add(1, 2, 3)
+
+	// Clear the set
+	s.Clear()
+
+	// Test that the set is empty after clearing
+	if s.Len() != 0 {
+		t.Errorf("Clear() failed, expected length = %v, got %v", 0, s.Len())
+	}
+}
+
+// TestOverwrite tests for the Overwrite method.
+func TestOverwrite(t *testing.T) {
+	// Initialize a new set
+	s := New[int]()
+	s.Add(1, 2, 3)
+
+	// Overwrite the set
+	s.Overwrite(4, 5, 6)
+
+	// Test that the set has the correct length after overwriting
+	if s.Len() != 3 {
+		t.Errorf("Overwrite() failed, expected length = %v, got %v",
+			3, s.Len())
+	}
+
+	// Test that the set contains the correct items after overwriting
+	expected := []int{4, 5, 6}
+	sort.Ints(expected)
+	sort.Ints(s.Elements())
+	if !reflect.DeepEqual(s.Elements(), expected) {
+		t.Errorf("Overwrite() failed, expected elements = %v, got %v",
+			expected, s.Elements())
 	}
 }
