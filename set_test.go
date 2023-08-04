@@ -671,3 +671,95 @@ func TestOverwrite(t *testing.T) {
 			expected, s.Elements())
 	}
 }
+
+// TestFiltered tests for the Filtered method.
+func TestFiltered(t *testing.T) {
+	s := New[int]()
+	s.Add(1, 2, 3, 4, 5)
+
+	filtered := s.Filtered(func(item int) bool {
+		return item > 3
+	})
+
+	expected := []int{4, 5}
+	sort.Ints(filtered)
+	if !reflect.DeepEqual(filtered, expected) {
+		t.Errorf("Filtered() failed, expected elements = %v, got %v",
+			expected, filtered)
+	}
+}
+
+// TestFilter tests for the Filter method.
+func TestFilter(t *testing.T) {
+	s := New[int]()
+	s.Add(1, 2, 3, 4, 5)
+
+	filtered := s.Filter(func(item int) bool {
+		return item > 3
+	})
+
+	expected := []int{4, 5}
+	sort.Ints(filtered.Elements())
+	if v := filtered.Sorted(); !reflect.DeepEqual(v, expected) {
+		t.Errorf("Filter() failed, expected elements = %v, got %v",
+			expected, v)
+	}
+}
+
+// TestMap tests for the Map method.
+func TestMap(t *testing.T) {
+	s := New[int]()
+	s.Add(1, 2, 3)
+
+	mapped := s.Map(func(item int) int {
+		return item * 2
+	})
+
+	expected := []int{2, 4, 6}
+	if v := mapped.Sorted(); !reflect.DeepEqual(v, expected) {
+		t.Errorf("Map() failed, expected elements = %v, got %v",
+			expected, v)
+	}
+}
+
+// TestReduce tests for the Reduce method.
+func TestReduce(t *testing.T) {
+	s := New[int]()
+	s.Add(1, 2, 3)
+
+	sum := s.Reduce(func(acc, item int) int {
+		return acc + item
+	})
+
+	if sum != 6 {
+		t.Errorf("Reduce() failed, expected value = %v, got %v", 6, sum)
+	}
+}
+
+// TestAny tests for the Any method.
+func TestAny(t *testing.T) {
+	s := New[int]()
+	s.Add(1, 2, 3)
+
+	any := s.Any(func(item int) bool {
+		return item > 2
+	})
+
+	if !any {
+		t.Errorf("Any() failed, expected value = %v, got %v", true, any)
+	}
+}
+
+// TestAll tests for the All method.
+func TestAll(t *testing.T) {
+	s := New[int]()
+	s.Add(1, 2, 3)
+
+	all := s.All(func(item int) bool {
+		return item > 2
+	})
+
+	if all {
+		t.Errorf("All() failed, expected value = %v, got %v", false, all)
+	}
+}

@@ -532,3 +532,127 @@ func (s *Set[T]) Overwrite(items ...T) {
 	s.Clear()
 	s.Add(items...)
 }
+
+// Filtered returns slice of items that satisfy the provided predicate.
+//
+// Example usage:
+//
+//	s := New[int]()
+//	s.Add(1, 2, 3, 4, 5)
+//
+//	filtered := s.Filtered(func(item int) bool {
+//		return item > 3
+//	}) // filtered contains 4, 5
+func (s *Set[T]) Filtered(fn func(item T) bool) []T {
+	result := make([]T, 0, len(s.heap))
+	for _, v := range s.heap {
+		if fn(v) {
+			result = append(result, v)
+		}
+	}
+	return result
+}
+
+// Filter returns a new set with items that satisfy the provided predicate.
+//
+// Example usage:
+//
+//	s := New[int]()
+//	s.Add(1, 2, 3, 4, 5)
+//
+//	filtered := s.Filter(func(item int) bool {
+//		return item > 3
+//	}) // filtered contains 4, 5
+func (s *Set[T]) Filter(fn func(item T) bool) *Set[T] {
+	result := New[T]()
+	for _, v := range s.heap {
+		if fn(v) {
+			result.Add(v)
+		}
+	}
+
+	return result
+}
+
+// Map returns a new set with the results of applying the provided function
+// to each item in the set.
+//
+// Example usage:
+//
+//	s := New[int]()
+//	s.Add(1, 2, 3)
+//
+//	mapped := s.Map(func(item int) int {
+//		return item * 2
+//	}) // mapped contains 2, 4, 6
+func (s *Set[T]) Map(fn func(item T) T) *Set[T] {
+	result := New[T]()
+	for _, v := range s.heap {
+		result.Add(fn(v))
+	}
+
+	return result
+}
+
+// Reduce returns a single value by applying the provided function to each
+// item in the set and passing the result of previous function call as the
+// first argument in the next call.
+//
+// Example usage:
+//
+//	s := New[int]()
+//	s.Add(1, 2, 3)
+//
+//	sum := s.Reduce(func(acc, item int) int {
+//		return acc + item
+//	}) // sum is 6
+func (s *Set[T]) Reduce(fn func(acc, item T) T) T {
+	var acc T
+	for _, v := range s.heap {
+		acc = fn(acc, v)
+	}
+
+	return acc
+}
+
+// Any returns true if any of the items in the set satisfy the provided
+// predicate.
+//
+// Example usage:
+//
+//	s := New[int]()
+//	s.Add(1, 2, 3)
+//
+//	any := s.Any(func(item int) bool {
+//		return item > 2
+//	}) // any is true
+func (s *Set[T]) Any(fn func(item T) bool) bool {
+	for _, v := range s.heap {
+		if fn(v) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// All returns true if all of the items in the set satisfy the provided
+// predicate.
+//
+// Example usage:
+//
+//	s := New[int]()
+//	s.Add(1, 2, 3)
+//
+//	all := s.All(func(item int) bool {
+//		return item > 2
+//	}) // all is false
+func (s *Set[T]) All(fn func(item T) bool) bool {
+	for _, v := range s.heap {
+		if !fn(v) {
+			return false
+		}
+	}
+
+	return true
+}
