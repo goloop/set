@@ -108,7 +108,7 @@ func TestToHashComplex(t *testing.T) {
 	}
 }
 
-// TestIsSimple tests isSimple function.
+// TestIsSimple tests IsSimple function.
 func TestIsSimple(t *testing.T) {
 	t.Parallel()
 
@@ -116,42 +116,42 @@ func TestIsSimple(t *testing.T) {
 		t.Parallel()
 
 		// Test with int type.
-		if !New[int](1, 2, 3).isSimple() {
+		if !New[int](1, 2, 3).IsSimple() {
 			t.Error("Int: expected set of type int to be simple")
 		}
 
 		// Test with string type.
-		if !New[string]("a", "b", "c").isSimple() {
+		if !New[string]("a", "b", "c").IsSimple() {
 			t.Error("String: expected set of type string to be simple")
 		}
 
 		// Test with bool type.
-		if !New[bool](true, false).isSimple() {
+		if !New[bool](true, false).IsSimple() {
 			t.Error("Bool: expected set of type bool to be simple")
 		}
 
 		// Test with byte type.
-		if !New[byte]('a', 'b', 'c').isSimple() {
+		if !New[byte]('a', 'b', 'c').IsSimple() {
 			t.Error("Byte: expected set of type byte to be simple")
 		}
 
 		// Test with rune type.
-		if !New[rune]('a', 'b', 'c').isSimple() {
+		if !New[rune]('a', 'b', 'c').IsSimple() {
 			t.Error("Rune: expected set of type rune to be simple")
 		}
 
 		// Test with float32 type.
-		if !New[float32](1.1, 2.2, 3.3).isSimple() {
+		if !New[float32](1.1, 2.2, 3.3).IsSimple() {
 			t.Error("Float32: expected set of type float32 to be simple")
 		}
 
 		// Test with complex64 type.
-		if !New[complex64](complex(1, 2), complex(3, 4)).isSimple() {
+		if !New[complex64](complex(1, 2), complex(3, 4)).IsSimple() {
 			t.Error("Complex64: expected set of type complex64 to be simple")
 		}
 
 		// Test with complex128 type.
-		if !New[complex128](complex(1, 2), complex(3, 4)).isSimple() {
+		if !New[complex128](complex(1, 2), complex(3, 4)).IsSimple() {
 			t.Error("Complex128: expected set of type complex128 to be simple")
 		}
 	})
@@ -160,42 +160,139 @@ func TestIsSimple(t *testing.T) {
 		t.Parallel()
 
 		// Test with struct type.
-		if New[ComplexType](ComplexType{1, "one"}, ComplexType{2, "two"}).isSimple() {
+		if New[ComplexType](
+			ComplexType{1, "one"},
+			ComplexType{2, "two"}).IsSimple() {
 			t.Error("Struct: expected set of type struct to be complex")
 		}
 
 		// Test with slice type.
 		slice := []int{1, 2, 3}
-		if New[[]int](slice).isSimple() {
+		if New[[]int](slice).IsSimple() {
 			t.Error("Slice: expected set of type slice to be complex")
 		}
 
 		// Test with map type.
 		m := map[int]string{1: "one", 2: "two", 3: "three"}
-		if New[map[int]string](m).isSimple() {
+		if New[map[int]string](m).IsSimple() {
 			t.Error("Map: expected set of type map to be complex")
 		}
 
 		// Test with func type.
-		if New[func()](func() {}).isSimple() {
+		if New[func()](func() {}).IsSimple() {
 			t.Error("Func: expected set of type func to be complex")
 		}
 
 		// Test with chan type.
 		ch := make(chan int)
-		if New[chan int](ch).isSimple() {
+		if New[chan int](ch).IsSimple() {
 			t.Error("Chan: expected set of type chan to be complex")
 		}
 
 		// Test with array type.
 		arr := [3]int{1, 2, 3}
-		if New[[3]int](arr).isSimple() {
+		if New[[3]int](arr).IsSimple() {
 			t.Error("Array: expected set of type array to be complex")
 		}
 
 		// Test with pointer type.
 		ptr := new(int)
-		if New[*int](ptr).isSimple() {
+		if New[*int](ptr).IsSimple() {
+			t.Error("Pointer: expected set of type pointer to be complex")
+		}
+	})
+}
+
+// TestIsComplex tests IsComplex function.
+func TestIsComplex(t *testing.T) {
+	t.Parallel()
+
+	t.Run("simple types", func(t *testing.T) {
+		t.Parallel()
+
+		// Test with int type.
+		if New[int](1, 2, 3).IsComplex() {
+			t.Error("Int: expected set of type int to be simple")
+		}
+
+		// Test with string type.
+		if New[string]("a", "b", "c").IsComplex() {
+			t.Error("String: expected set of type string to be simple")
+		}
+
+		// Test with bool type.
+		if New[bool](true, false).IsComplex() {
+			t.Error("Bool: expected set of type bool to be simple")
+		}
+
+		// Test with byte type.
+		if New[byte]('a', 'b', 'c').IsComplex() {
+			t.Error("Byte: expected set of type byte to be simple")
+		}
+
+		// Test with rune type.
+		if New[rune]('a', 'b', 'c').IsComplex() {
+			t.Error("Rune: expected set of type rune to be simple")
+		}
+
+		// Test with float32 type.
+		if New[float32](1.1, 2.2, 3.3).IsComplex() {
+			t.Error("Float32: expected set of type float32 to be simple")
+		}
+
+		// Test with complex64 type.
+		if New[complex64](complex(1, 2), complex(3, 4)).IsComplex() {
+			t.Error("Complex64: expected set of type complex64 to be simple")
+		}
+
+		// Test with complex128 type.
+		if New[complex128](complex(1, 2), complex(3, 4)).IsComplex() {
+			t.Error("Complex128: expected set of type complex128 to be simple")
+		}
+	})
+
+	t.Run("complex types", func(t *testing.T) {
+		t.Parallel()
+
+		// Test with struct type.
+		if !New[ComplexType](
+			ComplexType{1, "one"},
+			ComplexType{2, "two"}).IsComplex() {
+			t.Error("Struct: expected set of type struct to be complex")
+		}
+
+		// Test with slice type.
+		slice := []int{1, 2, 3}
+		if !New[[]int](slice).IsComplex() {
+			t.Error("Slice: expected set of type slice to be complex")
+		}
+
+		// Test with map type.
+		m := map[int]string{1: "one", 2: "two", 3: "three"}
+		if !New[map[int]string](m).IsComplex() {
+			t.Error("Map: expected set of type map to be complex")
+		}
+
+		// Test with func type.
+		if !New[func()](func() {}).IsComplex() {
+			t.Error("Func: expected set of type func to be complex")
+		}
+
+		// Test with chan type.
+		ch := make(chan int)
+		if !New[chan int](ch).IsComplex() {
+			t.Error("Chan: expected set of type chan to be complex")
+		}
+
+		// Test with array type.
+		arr := [3]int{1, 2, 3}
+		if !New[[3]int](arr).IsComplex() {
+			t.Error("Array: expected set of type array to be complex")
+		}
+
+		// Test with pointer type.
+		ptr := new(int)
+		if !New[*int](ptr).IsComplex() {
 			t.Error("Pointer: expected set of type pointer to be complex")
 		}
 	})

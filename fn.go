@@ -44,7 +44,7 @@ func New[T any](items ...T) *Set[T] {
 		heap:   make(map[string]T),
 		simple: 0,
 	}
-	set.isSimple()    // cache the complexity of the object
+	set.IsSimple()    // cache the complexity of the object
 	set.Add(items...) // add items to the set
 
 	return &set

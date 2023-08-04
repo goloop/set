@@ -19,9 +19,9 @@ import (
 	"strings"
 )
 
-// sortMarker is a helper struct that is used to sort the set.
-type sortMarker[T any] struct {
-	name  string
+// sortingElement is a helper struct that is used to sort the set.
+type sortingElement[T any] struct {
+	key   string
 	value T
 }
 
@@ -47,7 +47,7 @@ func (s *Set[T]) toHash(obj T) string {
 	// I think there is no point in hashing the result string or doing
 	// something like strip - it's just additional resources for string
 	// conversion.
-	if s.isSimple() {
+	if s.IsSimple() {
 		return fmt.Sprintf("%v", obj)
 	}
 
@@ -101,7 +101,7 @@ func toStr(v reflect.Value) string {
 	}
 }
 
-// isSimple determines the complexity of the objects in the set, i.e.,
+// IsSimple determines the complexity of the objects in the set, i.e.,
 // whether the objects are simple or complex.
 //
 // This method sets the field 'simple' based on the type of the object.
@@ -116,7 +116,7 @@ func toStr(v reflect.Value) string {
 // This method is invoked upon the creation of a set, and the complexity
 // information  is cached for efficient subsequent operations.
 // It returns true if the objects in the set are simple, and false otherwise.
-func (s *Set[T]) isSimple() bool {
+func (s *Set[T]) IsSimple() bool {
 	// If the complexity of the object is already defined.
 	if s.simple != 0 {
 		return s.simple == 1
@@ -137,6 +137,12 @@ func (s *Set[T]) isSimple() bool {
 	}
 
 	return s.simple == 1
+}
+
+// IsComplex returns true if the objects in the set are complex, and false
+// otherwise.
+func (s *Set[T]) IsComplex() bool {
+	return !s.IsSimple()
 }
 
 // Add adds the given items to the set.
@@ -205,6 +211,7 @@ func (s *Set[T]) Elements() []T {
 	for _, v := range s.heap {
 		items = append(items, v)
 	}
+
 	return items
 }
 
@@ -237,6 +244,7 @@ func (s *Set[T]) Len() int {
 func (s *Set[T]) Union(set *Set[T]) *Set[T] {
 	result := New[T](s.Elements()...)
 	result.Add(set.Elements()...)
+
 	return result
 }
 
@@ -259,6 +267,7 @@ func (s *Set[T]) Intersection(set *Set[T]) *Set[T] {
 			result.Add(v)
 		}
 	}
+
 	return result
 }
 
@@ -311,6 +320,7 @@ func (s *Set[T]) SymmetricDifference(set *Set[T]) *Set[T] {
 			result.Add(v)
 		}
 	}
+
 	for _, v := range set.heap {
 		if !s.Contains(v) {
 			result.Add(v)
@@ -377,14 +387,14 @@ func (s *Set[T]) IsSuperset(set *Set[T]) bool {
 func (s *Set[T]) Sorted(fns ...func(a, b T) bool) []T {
 	// Create a temporary slice of sortMarker[T] to hold
 	// the data and sort it.
-	tmp := make([]sortMarker[T], 0, len(s.heap)) // here is the change
+	tmp := make([]sortingElement[T], 0, len(s.heap)) // here is the change
 	for k, v := range s.heap {
-		tmp = append(tmp, sortMarker[T]{name: k, value: v})
+		tmp = append(tmp, sortingElement[T]{key: k, value: v})
 	}
 
 	if len(fns) == 0 {
 		sort.Slice(tmp, func(i, j int) bool {
-			return tmp[i].name < tmp[j].name
+			return tmp[i].key < tmp[j].key
 		})
 	} else {
 		for _, fn := range fns {
@@ -500,6 +510,7 @@ func (s *Set[T]) Filtered(fn func(item T) bool) []T {
 			result = append(result, v)
 		}
 	}
+
 	return result
 }
 
