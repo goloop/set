@@ -267,6 +267,8 @@ See example [here](https://go.dev/play/p/pwv3PALIroT).
 
 ### Other functions
 
+**Example 1.**
+
 ```go
 package main
 
@@ -327,6 +329,117 @@ func main() {
 ```
 
 See example [here](https://go.dev/play/p/WTiW6_viwrO).
+
+**Example 2.**
+
+```go
+package main
+
+import (
+	"fmt"
+
+	"github.com/goloop/set"
+)
+
+// User object.
+type User struct {
+	Name   string
+	Age    int
+	Gender string
+}
+
+func main() {
+	s := set.New(
+		User{"Alice", 20, "f"},
+		User{"Bob", 30, "m"},
+		User{"Charlie", 40, "m"},
+		User{"Dave", 50, "m"},
+		User{"Eve", 16, "f"},
+	)
+
+	// Filtered.
+	fmt.Println("\nFiltered:")
+	fmt.Println("Women:", s.Filtered(func(item User) bool {
+		return item.Gender == "f"
+	}))
+	fmt.Println("Adults:", s.Filtered(func(item User) bool {
+		return item.Age > 18
+	}))
+
+	// Filter.
+	f := s.Filter(func(item User) bool {
+		return item.Gender == "f" && item.Age > 18
+	})
+	fmt.Println("\nFilter:")
+	fmt.Println("Adults women:", f.Elements())
+
+	// Map.
+	// Methods cannot support generics, so we need to use the set.Map
+	// function to change the types of generated values.
+	//
+	// Better to use the Map method for simple types only, like:
+	// int, uint, bool, etc.
+	// s := set.New[int](1, 2, 3, 4)
+	// m := s.Map(func(item int) int {
+	//     return item * 2
+	// }) // returns a new set with the values {2, 4, 6, 8}
+	names := set.Map(s, func(item User) string {
+		return item.Name
+	})
+	fmt.Println("\nMap:")
+	fmt.Println("Names:", names.Elements())
+
+	// Reduce.
+	// Methods cannot support generics, so we need to use the set.Reduce
+	// function to change the types of generated values.
+	//
+	// We can use the Reduce method for simple types only, like:
+	// int, uint, bool, etc.
+	// s := set.New[int](1, 2, 3, 4)
+	// sum := s.Reduce(func(acc int, item int) int {
+	//     return acc + item
+	// }) // returns 10
+	sum := set.Reduce(s, func(acc int, item User) int {
+		return acc + item.Age
+	})
+	fmt.Println("\nReduce:")
+	fmt.Println("Total age:", sum)
+
+	// Any.
+	fmt.Println("\nAny:")
+	fmt.Println("Any adult:", s.Any(func(item User) bool {
+		return item.Age > 18
+	}))
+
+	// All.
+	fmt.Println("\nAll:")
+	fmt.Println("All adults:", s.All(func(item User) bool {
+		return item.Age > 18
+	}))
+}
+
+// Output:
+// Filtered:
+// Women: [{Eve 16 f} {Alice 20 f}]
+// Adults: [{Alice 20 f} {Bob 30 m} {Charlie 40 m} {Dave 50 m}]
+
+// Filter:
+// Adults women: [{Alice 20 f}]
+
+// Map:
+// Names: [Alice Bob Charlie Dave Eve]
+
+// Reduce:
+// Total age: 156
+
+// Any:
+// Any adult: true
+
+// All:
+// All adults: false
+```
+
+See example [here](https://go.dev/play/p/nfvIji29YhN).
 
 ## Documentation
 You can read more about the Set package and its functions on [Godoc](https://godoc.org/github.com/goloop/set).

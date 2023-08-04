@@ -580,9 +580,9 @@ func TestOverwrite(t *testing.T) {
 	expected := []int{4, 5, 6}
 	sort.Ints(expected)
 	sort.Ints(s.Elements())
-	if !reflect.DeepEqual(s.Elements(), expected) {
+	if v := s.Sorted(); !reflect.DeepEqual(v, expected) {
 		t.Errorf("Overwrite() failed, expected elements = %v, got %v",
-			expected, s.Elements())
+			expected, v)
 	}
 }
 

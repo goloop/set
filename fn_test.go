@@ -2,7 +2,6 @@ package set
 
 import (
 	"reflect"
-	"sort"
 	"testing"
 )
 
@@ -107,11 +106,10 @@ func TestMapFn(t *testing.T) {
 		return item.Name
 	})
 
-	expected := []string{"John", "Jane"}
-	sort.Strings(names.Elements())
-	if !reflect.DeepEqual(names.Elements(), expected) {
+	expected := []string{"Jane", "John"}
+	if v := names.Sorted(); !reflect.DeepEqual(v, expected) {
 		t.Errorf("Map() failed, expected names = %v, got %v",
-			expected, names.Elements())
+			expected, v)
 	}
 }
 

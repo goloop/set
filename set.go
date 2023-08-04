@@ -422,8 +422,8 @@ func (s *Set[T]) Append(sets ...*Set[T]) {
 	}
 }
 
-// Extend is an alias for Append. It adds all elements from the provided sets
-// to the current set.
+// Extend is an alias for Append. It adds all elements from
+// the provided sets to the current set.
 //
 // Example usage:
 //
@@ -535,6 +535,9 @@ func (s *Set[T]) Filter(fn func(item T) bool) *Set[T] {
 //	mapped := s.Map(func(item int) int {
 //		return item * 2
 //	}) // mapped contains 2, 4, 6
+//
+// Due to the fact that methods in Go don't support generics to change
+// the result type we have to use the set.Map function.
 func (s *Set[T]) Map(fn func(item T) T) *Set[T] {
 	result := New[T]()
 	for _, v := range s.heap {
@@ -556,6 +559,9 @@ func (s *Set[T]) Map(fn func(item T) T) *Set[T] {
 //	sum := s.Reduce(func(acc, item int) int {
 //		return acc + item
 //	}) // sum is 6
+//
+// Due to the fact that methods in Go don't support generics to change
+// the result type we have to use the set.Reduce function.
 func (s *Set[T]) Reduce(fn func(acc, item T) T) T {
 	var acc T
 	for _, v := range s.heap {
@@ -565,8 +571,8 @@ func (s *Set[T]) Reduce(fn func(acc, item T) T) T {
 	return acc
 }
 
-// Any returns true if any of the items in the set satisfy the provided
-// predicate.
+// Any returns true if any of the items in the set satisfy
+// the provided predicate.
 //
 // Example usage:
 //
@@ -586,8 +592,8 @@ func (s *Set[T]) Any(fn func(item T) bool) bool {
 	return false
 }
 
-// All returns true if all of the items in the set satisfy the provided
-// predicate.
+// All returns true if all of the items in the set satisfy
+// the provided predicate.
 //
 // Example usage:
 //
