@@ -102,3 +102,131 @@ func Reduce[T any, R any](s *Set[T], fn func(acc R, item T) R) R {
 
 	return acc
 }
+
+// Union returns a new set with all the items that are in either the set
+// or in the other set.
+//
+// Example usage:
+//
+//	s1 := set.New[int](1, 2, 3)
+//	s2 := set.New[int](3, 4, 5)
+//	s3 := set.New[int](5, 6, 7)
+//	s4 := set.New[int](7, 8, 9)
+//
+//	r := set.Union(s1, s2, s3, s4)
+//	fmt.Println(r.Sorted()) // 1, 2, 3, 4, 5, 6, 7, 8, 9
+func Union[T any](s *Set[T], others ...*Set[T]) *Set[T] {
+	result := New[T]()
+	for _, v := range s.heap {
+		result.Add(v)
+	}
+
+	for _, other := range others {
+		for _, v := range other.heap {
+			result.Add(v)
+		}
+	}
+
+	return result
+}
+
+// Intersection returns a new set with all the items that are in both the
+// set and in the other set.
+//
+// Example usage:
+//
+//	s1 := set.New[int](1, 2, 3)
+//	s2 := set.New[int](3, 4, 5)
+//	s3 := set.New[int](5, 6, 7)
+//	s4 := set.New[int](7, 8, 9)
+//
+//	r := set.Intersection(s1, s2, s3, s4)
+//	fmt.Println(r.Sorted()) // 7
+func Intersection[T any](s *Set[T], others ...*Set[T]) *Set[T] {
+	result := New[T]()
+
+	for _, v := range s.heap {
+		isInAll := true
+		for _, other := range others {
+			if !other.Contains(v) {
+				isInAll = false
+				break
+			}
+		}
+		if isInAll {
+			result.Add(v)
+		}
+	}
+
+	return result
+}
+
+// Difference returns a new set with all the items that are in the set but
+// not in the other set.
+//
+// Example usage:
+//
+//	s1 := set.New[int](1, 2, 3)
+//	s2 := set.New[int](3, 4, 5)
+//	s3 := set.New[int](5, 6, 7)
+//	s4 := set.New[int](7, 8, 9)
+//
+//	r := set.Difference(s1, s2, s3, s4)
+//	fmt.Println(r.Sorted()) // 1, 2
+func Difference[T any](s *Set[T], others ...*Set[T]) *Set[T] {
+	result := New[T]()
+	for _, v := range s.heap {
+		result.Add(v)
+	}
+
+	for _, other := range others {
+		for _, v := range other.heap {
+			if result.Contains(v) {
+				result.Delete(v)
+			}
+		}
+	}
+
+	return result
+}
+
+// Diff is an alias for Difference.
+func Diff[T any](s *Set[T], others ...*Set[T]) *Set[T] {
+	return Difference(s, others...)
+}
+
+// SymmetricDifference returns a new set with all the items that are in the
+// set or in the other set but not in both.
+//
+// Example usage:
+//
+//	s1 := set.New[int](1, 2, 3)
+//	s2 := set.New[int](3, 4, 5)
+//	s3 := set.New[int](5, 6, 7)
+//	s4 := set.New[int](7, 8, 9)
+//
+//	r := set.SymmetricDifference(s1, s2, s3, s4)
+//	fmt.Println(r.Sorted()) // 1, 2, 4, 6, 8, 9
+func SymmetricDifference[T any](s *Set[T], others ...*Set[T]) *Set[T] {
+	result := New[T]()
+	for _, v := range s.heap {
+		result.Add(v)
+	}
+
+	for _, other := range others {
+		for _, v := range other.heap {
+			if result.Contains(v) {
+				result.Delete(v)
+			} else {
+				result.Add(v)
+			}
+		}
+	}
+
+	return result
+}
+
+// Sdiff is an alias for SymmetricDifference.
+func Sdiff[T any](s *Set[T], others ...*Set[T]) *Set[T] {
+	return SymmetricDifference(s, others...)
+}

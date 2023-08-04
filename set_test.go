@@ -83,22 +83,22 @@ func TestToStr(t *testing.T) {
 func TestToHashComplex(t *testing.T) {
 	tests := []struct {
 		name     string
-		input    ComplexType
+		input    complexType
 		expected string
 	}{
 		{
 			name:     "complex {1, \"one\"}",
-			input:    ComplexType{1, "one"},
+			input:    complexType{1, "one"},
 			expected: "{field1:1, field2:one}",
 		},
 		{
 			name:     "complex {2, \"two\"}",
-			input:    ComplexType{2, "two"},
+			input:    complexType{2, "two"},
 			expected: "{field1:2, field2:two}",
 		},
 	}
 
-	set := New[ComplexType]()
+	set := New[complexType]()
 	for _, tc := range tests {
 		result := set.toHash(tc.input)
 		if result != tc.expected {
@@ -160,9 +160,9 @@ func TestIsSimple(t *testing.T) {
 		t.Parallel()
 
 		// Test with struct type.
-		if New[ComplexType](
-			ComplexType{1, "one"},
-			ComplexType{2, "two"}).IsSimple() {
+		if New[complexType](
+			complexType{1, "one"},
+			complexType{2, "two"}).IsSimple() {
 			t.Error("Struct: expected set of type struct to be complex")
 		}
 
@@ -255,9 +255,9 @@ func TestIsComplex(t *testing.T) {
 		t.Parallel()
 
 		// Test with struct type.
-		if !New[ComplexType](
-			ComplexType{1, "one"},
-			ComplexType{2, "two"}).IsComplex() {
+		if !New[complexType](
+			complexType{1, "one"},
+			complexType{2, "two"}).IsComplex() {
 			t.Error("Struct: expected set of type struct to be complex")
 		}
 
