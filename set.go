@@ -19,56 +19,6 @@ import (
 	"strings"
 )
 
-// New is a constructor function that creates a new Set[T] instance.
-// It accepts an arbitrary number of items of a generic type 'T' which
-// can be either simple types (e.g., int, string, bool) or complex types
-// (e.g., struct, slice).
-//
-// This function first creates a new, empty set. It then determines whether
-// the Set is simple or complex based on the type of the first item, and
-// caches this information for efficient subsequent operations. Finally,
-// it adds the provided items to the Set.
-//
-// Note: All items must be of the same type. If different types are provided,
-// the behavior is undefined.
-//
-// Example usage:
-//
-//	// Creating a set of simple type (int)
-//	emptySet := New[int]()       // empty set of int
-//	simpleSet := New(1, 2, 3, 4) // set of int
-//
-//	// Creating a set of complex type (struct).
-//	type ComplexType struct {
-//	    field1 int
-//	    field2 string
-//	}
-//	complexSet := New(
-//	    ComplexType{1, "one"},
-//	    ComplexType{2, "two"},
-//	)
-//
-//	// Adding an item to the set.
-//	simpleSet.Add(5)
-//	complexSet.Add(ComplexType{3, "three"})
-//
-//	// Checking if an item exists in the set.
-//	existsSimple := simpleSet.Contains(3)                       // returns true
-//	existsComplex := complexSet.Contains(ComplexType{2, "two"}) // returns true
-//
-//	// Getting the size of the set.
-//	size := simpleSet.Len() // returns 5
-func New[T any](items ...T) *Set[T] {
-	set := Set[T]{
-		heap:   make(map[string]T),
-		simple: 0,
-	}
-	set.isSimple()    // cache the complexity of the object
-	set.Add(items...) // add items to the set
-
-	return &set
-}
-
 // sortMarker is a helper struct that is used to sort the set.
 type sortMarker[T any] struct {
 	name  string
@@ -194,7 +144,7 @@ func (s *Set[T]) isSimple() bool {
 // Example usage:
 //
 //	// Define a new set
-//	s := New[int]()
+//	s := set.New[int]()
 //
 //	// Add elements to the set
 //	s.Add(1, 2, 3, 4)
@@ -211,7 +161,7 @@ func (s *Set[T]) Add(items ...T) {
 // Example usage:
 //
 //	// Define a new set and add some elements
-//	s := New[int]()
+//	s := set.New[int]()
 //	s.Add(1, 2, 3, 4)
 //
 //	// Remove elements from the set
@@ -229,7 +179,7 @@ func (s *Set[T]) Delete(items ...T) {
 // Example usage:
 //
 //	// Define a new set and add some elements.
-//	s := New[int]()
+//	s := set.New[int]()
 //	s.Add(1, 2, 3, 4)
 //
 //	// Check if the set contains certain elements.
@@ -247,7 +197,7 @@ func (s *Set[T]) Contains(item T) bool {
 //
 // Example usage:
 //
-//	s := New[int]()
+//	s := set.New[int]()
 //	s.Add(1, 2, 3, 4)
 //	elements := s.Elements()  // elements is []int{1, 2, 3, 4}
 func (s *Set[T]) Elements() []T {
@@ -263,7 +213,7 @@ func (s *Set[T]) Elements() []T {
 //
 // Example usage:
 //
-//	s := New[int]()
+//	s := set.New[int]()
 //	s.Add(1, 2, 3, 4)
 //	length := s.Len()  // length is 4
 func (s *Set[T]) Len() int {
@@ -277,10 +227,10 @@ func (s *Set[T]) Len() int {
 //
 // Example usage:
 //
-//	s1 := New[int]()
+//	s1 := set.New[int]()
 //	s1.Add(1, 2, 3)
 //
-//	s2 := New[int]()
+//	s2 := set.New[int]()
 //	s2.Add(3, 4, 5)
 //
 //	union := s1.Union(s2)  // union contains 1, 2, 3, 4, 5
@@ -295,10 +245,10 @@ func (s *Set[T]) Union(set *Set[T]) *Set[T] {
 //
 // Example usage:
 //
-//	s1 := New[int]()
+//	s1 := set.New[int]()
 //	s1.Add(1, 2, 3)
 //
-//	s2 := New[int]()
+//	s2 := set.New[int]()
 //	s2.Add(3, 4, 5)
 //
 //	intersection := s1.Intersection(s2)  // intersection contains 3
@@ -318,10 +268,10 @@ func (s *Set[T]) Intersection(set *Set[T]) *Set[T] {
 //
 // Example usage:
 //
-//	s1 := New[int]()
+//	s1 := set.New[int]()
 //	s1.Add(1, 2, 3)
 //
-//	s2 := New[int]()
+//	s2 := set.New[int]()
 //	s2.Add(3, 4, 5)
 //
 //	difference := s1.Difference(s2)  // difference contains 1, 2
@@ -347,10 +297,10 @@ func (s *Set[T]) Diff(set *Set[T]) *Set[T] {
 //
 // Example usage:
 //
-//	s1 := New[int]()
+//	s1 := set.New[int]()
 //	s1.Add(1, 2, 3)
 //
-//	s2 := New[int]()
+//	s2 := set.New[int]()
 //	s2.Add(3, 4, 5)
 //
 //	symmetricDifference := s1.SymmetricDifference(s2)  // 1, 2, 4, 5
@@ -381,10 +331,10 @@ func (s *Set[T]) Sdiff(set *Set[T]) *Set[T] {
 //
 // Example usage:
 //
-//	s1 := New[int]()
+//	s1 := set.New[int]()
 //	s1.Add(1, 2, 3)
 //
-//	s2 := New[int]()
+//	s2 := set.New[int]()
 //	s2.Add(1, 2, 3, 4, 5)
 //
 //	isSubset := s1.IsSubset(s2)  // isSubset is true
@@ -404,10 +354,10 @@ func (s *Set[T]) IsSubset(set *Set[T]) bool {
 //
 // Example usage:
 //
-//	s1 := New[int]()
+//	s1 := set.New[int]()
 //	s1.Add(1, 2, 3, 4, 5)
 //
-//	s2 := New[int]()
+//	s2 := set.New[int]()
 //	s2.Add(1, 2, 3)
 //
 //	isSuperset := s1.IsSuperset(s2)  // isSuperset is true
@@ -420,7 +370,7 @@ func (s *Set[T]) IsSuperset(set *Set[T]) bool {
 //
 // Example usage:
 //
-//	s := New[int]()
+//	s := set.New[int]()
 //	s.Add(3, 2, 1)
 //
 //	sorted := s.Sorted() // sorted contains 1, 2, 3
@@ -457,7 +407,7 @@ func (s *Set[T]) Sorted(fns ...func(a, b T) bool) []T {
 //
 // Example usage:
 //
-//	s1 := New[int]()
+//	s1 := set.New[int]()
 //	s1.Add(1, 2, 3)
 //
 //	s2 := New[int]()
@@ -477,10 +427,10 @@ func (s *Set[T]) Append(sets ...*Set[T]) {
 //
 // Example usage:
 //
-//	s1 := New[int]()
+//	s1 := set.New[int]()
 //	s1.Add(1, 2, 3)
 //
-//	s2 := New[int]()
+//	s2 := set.New[int]()
 //	s2.Add(4, 5, 6)
 //
 //	s1.Extend(s2)  // s1 now contains 1, 2, 3, 4, 5, 6
@@ -493,7 +443,7 @@ func (s *Set[T]) Extend(sets []*Set[T]) {
 //
 // Example usage:
 //
-//	s := New[int]()
+//	s := set.New[int]()
 //	s.Add(1, 2, 3)
 //
 //	copied := s.Copy() // copied contains 1, 2, 3
@@ -522,7 +472,7 @@ func (s *Set[T]) Clear() {
 //
 // Example usage:
 //
-//		s := New[int]()
+//		s := set.New[int]()
 //		s.Add(1, 2, 3)
 //		s.Elements() // returns []int{1, 2, 3}
 //
@@ -537,7 +487,7 @@ func (s *Set[T]) Overwrite(items ...T) {
 //
 // Example usage:
 //
-//	s := New[int]()
+//	s := set.New[int]()
 //	s.Add(1, 2, 3, 4, 5)
 //
 //	filtered := s.Filtered(func(item int) bool {
@@ -557,7 +507,7 @@ func (s *Set[T]) Filtered(fn func(item T) bool) []T {
 //
 // Example usage:
 //
-//	s := New[int]()
+//	s := set.New[int]()
 //	s.Add(1, 2, 3, 4, 5)
 //
 //	filtered := s.Filter(func(item int) bool {
@@ -579,7 +529,7 @@ func (s *Set[T]) Filter(fn func(item T) bool) *Set[T] {
 //
 // Example usage:
 //
-//	s := New[int]()
+//	s := set.New[int]()
 //	s.Add(1, 2, 3)
 //
 //	mapped := s.Map(func(item int) int {
@@ -600,7 +550,7 @@ func (s *Set[T]) Map(fn func(item T) T) *Set[T] {
 //
 // Example usage:
 //
-//	s := New[int]()
+//	s := set.New[int]()
 //	s.Add(1, 2, 3)
 //
 //	sum := s.Reduce(func(acc, item int) int {
@@ -620,7 +570,7 @@ func (s *Set[T]) Reduce(fn func(acc, item T) T) T {
 //
 // Example usage:
 //
-//	s := New[int]()
+//	s := set.New[int]()
 //	s.Add(1, 2, 3)
 //
 //	any := s.Any(func(item int) bool {
@@ -641,7 +591,7 @@ func (s *Set[T]) Any(fn func(item T) bool) bool {
 //
 // Example usage:
 //
-//	s := New[int]()
+//	s := set.New[int]()
 //	s.Add(1, 2, 3)
 //
 //	all := s.All(func(item int) bool {
