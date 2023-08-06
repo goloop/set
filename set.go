@@ -13,8 +13,10 @@
 package set
 
 import (
+	"context"
 	"fmt"
 	"reflect"
+	"runtime"
 	"sort"
 	"strings"
 )
@@ -35,6 +37,7 @@ type sortingElement[T any] struct {
 type Set[T any] struct {
 	heap   map[string]T // collection of objects
 	simple int          // -1 - complex object, 0 - not set, 1 - simple object
+	ctx    context.Context
 }
 
 // toHash converts the given object to a string. If the set contains simple
@@ -207,12 +210,28 @@ func (s *Set[T]) Contains(item T) bool {
 //	s.Add(1, 2, 3, 4)
 //	elements := s.Elements()  // elements is []int{1, 2, 3, 4}
 func (s *Set[T]) Elements() []T {
+	r, _ := s.elementsWithContext(s.ctx)
+	return r
+}
+
+// elementsWithContext returns all items in the set.
+func (s *Set[T]) elementsWithContext(ctx context.Context) ([]T, error) {
 	var items []T
-	for _, v := range s.heap {
-		items = append(items, v)
+
+	if ctx == nil {
+		ctx = context.Background()
 	}
 
-	return items
+	for _, v := range s.heap {
+		items = append(items, v)
+		select {
+		case <-ctx.Done():
+			return []T{}, ctx.Err()
+		default:
+		}
+	}
+
+	return items, nil
 }
 
 // Len returns the number of items in the set.
@@ -242,14 +261,35 @@ func (s *Set[T]) Len() int {
 //
 //	union := s1.Union(s2)  // union contains 1, 2, 3, 4, 5
 func (s *Set[T]) Union(set *Set[T]) *Set[T] {
-	result := New[T](s.Elements()...)
-	result.Add(set.Elements()...)
+	r, _ := s.unionWithContext(s.ctx, set)
+	return r
+}
 
-	return result
+// uniunWithContext returns a new set with all the items in both sets.
+func (s *Set[T]) unionWithContext(ctx context.Context,
+	set *Set[T]) (*Set[T], error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	// Elements of the base set.
+	e, err := s.elementsWithContext(ctx)
+	if err != nil {
+		return &Set[T]{}, err
+	}
+	result := New[T](e...)
+
+	// Elements of the other set.
+	e, err = set.elementsWithContext(ctx)
+	if err != nil {
+		return &Set[T]{}, err
+	}
+	result.Add(e...)
+
+	return result, nil
 }
 
 // Intersection returns a new set with items that exist only in both sets.
-// This is useful when you want to find common items between two sets.
 //
 // Example usage:
 //
@@ -261,14 +301,37 @@ func (s *Set[T]) Union(set *Set[T]) *Set[T] {
 //
 //	intersection := s1.Intersection(s2)  // intersection contains 3
 func (s *Set[T]) Intersection(set *Set[T]) *Set[T] {
+	r, _ := s.intersectionWithContext(s.ctx, set)
+	return r
+}
+
+// Inter is an alias for Intersection.
+func (s *Set[T]) Inter(set *Set[T]) *Set[T] {
+	return s.Intersection(set)
+}
+
+// intersectionWithContext returns a new set with items that exist
+// only in both sets.
+func (s *Set[T]) intersectionWithContext(ctx context.Context,
+	set *Set[T]) (*Set[T], error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	result := New[T]()
 	for _, v := range s.heap {
 		if set.Contains(v) {
 			result.Add(v)
 		}
+
+		select {
+		case <-ctx.Done():
+			return &Set[T]{}, ctx.Err()
+		default:
+		}
 	}
 
-	return result
+	return result, nil
 }
 
 // Difference returns a new set with items in the first set but
@@ -285,19 +348,37 @@ func (s *Set[T]) Intersection(set *Set[T]) *Set[T] {
 //
 //	difference := s1.Difference(s2)  // difference contains 1, 2
 func (s *Set[T]) Difference(set *Set[T]) *Set[T] {
-	result := New[T]()
-	for _, v := range s.heap {
-		if !set.Contains(v) {
-			result.Add(v)
-		}
-	}
-
-	return result
+	r, _ := s.differenceWithContext(s.ctx, set)
+	return r
 }
 
 // Diff is an alias for Difference.
 func (s *Set[T]) Diff(set *Set[T]) *Set[T] {
 	return s.Difference(set)
+}
+
+// differenceWithContext returns a new set with items in the first set but
+// not in the second.
+func (s *Set[T]) differenceWithContext(ctx context.Context,
+	set *Set[T]) (*Set[T], error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	result := New[T]()
+	for _, v := range s.heap {
+		if !set.Contains(v) {
+			result.Add(v)
+		}
+
+		select {
+		case <-ctx.Done():
+			return &Set[T]{}, ctx.Err()
+		default:
+		}
+	}
+
+	return result, nil
 }
 
 // SymmetricDifference returns a new set with items in either
@@ -314,25 +395,52 @@ func (s *Set[T]) Diff(set *Set[T]) *Set[T] {
 //
 //	symmetricDifference := s1.SymmetricDifference(s2)  // 1, 2, 4, 5
 func (s *Set[T]) SymmetricDifference(set *Set[T]) *Set[T] {
-	result := New[T]()
-	for _, v := range s.heap {
-		if !set.Contains(v) {
-			result.Add(v)
-		}
-	}
-
-	for _, v := range set.heap {
-		if !s.Contains(v) {
-			result.Add(v)
-		}
-	}
-
-	return result
+	r, _ := s.symmetricDifferenceWithContext(s.ctx, set)
+	return r
 }
 
 // Sdiff is an alias for SymmetricDifference.
 func (s *Set[T]) Sdiff(set *Set[T]) *Set[T] {
 	return s.SymmetricDifference(set)
+}
+
+// symmetricDifferenceWithContext returns a new set with items in either
+// the first or second set but not both.
+func (s *Set[T]) symmetricDifferenceWithContext(ctx context.Context,
+	set *Set[T]) (*Set[T], error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	// Elements of the base set.
+	result := New[T]()
+	for _, v := range s.heap {
+		if !set.Contains(v) {
+			result.Add(v)
+		}
+
+		select {
+		case <-ctx.Done():
+			return &Set[T]{}, ctx.Err()
+		default:
+		}
+	}
+
+	// Elements of the other set.
+	runtime.Gosched()
+	for _, v := range set.heap {
+		if !s.Contains(v) {
+			result.Add(v)
+		}
+
+		select {
+		case <-ctx.Done():
+			return &Set[T]{}, ctx.Err()
+		default:
+		}
+	}
+
+	return result, nil
 }
 
 // IsSubset returns true if all items in the first set exist in the second.
@@ -349,13 +457,36 @@ func (s *Set[T]) Sdiff(set *Set[T]) *Set[T] {
 //
 //	isSubset := s1.IsSubset(s2)  // isSubset is true
 func (s *Set[T]) IsSubset(set *Set[T]) bool {
+	r, _ := s.isSubsetWithContext(s.ctx, set)
+	return r
+}
+
+// IsSub is an alias for IsSubset.
+func (s *Set[T]) IsSub(set *Set[T]) bool {
+	return s.IsSubset(set)
+}
+
+// isSubsetWithContext returns true if all items in the first
+// set exist in the second.
+func (s *Set[T]) isSubsetWithContext(ctx context.Context,
+	set *Set[T]) (bool, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	for _, v := range s.heap {
 		if !set.Contains(v) {
-			return false
+			return false, nil
+		}
+
+		select {
+		case <-ctx.Done():
+			return false, ctx.Err()
+		default:
 		}
 	}
 
-	return true
+	return true, nil
 }
 
 // IsSuperset returns true if all items in the second set exist in the first.
@@ -372,11 +503,23 @@ func (s *Set[T]) IsSubset(set *Set[T]) bool {
 //
 //	isSuperset := s1.IsSuperset(s2)  // isSuperset is true
 func (s *Set[T]) IsSuperset(set *Set[T]) bool {
-	return set.IsSubset(s)
+	r, _ := s.isSupersetWithContext(s.ctx, set)
+	return r
 }
 
-// Sorted returns a new set with items sorted in ascending order.
-// This is useful when you want to sort the items in the set.
+// IsSuper is an alias for IsSuperset.
+func (s *Set[T]) IsSuper(set *Set[T]) bool {
+	return s.IsSuperset(set)
+}
+
+// isSupersetWithContext returns true if all items in the second
+// set exist in the first.
+func (s *Set[T]) isSupersetWithContext(ctx context.Context,
+	set *Set[T]) (bool, error) {
+	return set.isSubsetWithContext(ctx, s)
+}
+
+// Sorted returns a slice of the sorted elements of the set.
 //
 // Example usage:
 //
@@ -385,13 +528,32 @@ func (s *Set[T]) IsSuperset(set *Set[T]) bool {
 //
 //	sorted := s.Sorted() // sorted contains 1, 2, 3
 func (s *Set[T]) Sorted(fns ...func(a, b T) bool) []T {
+	r, _ := s.sortedWithContext(s.ctx, fns...)
+	return r
+}
+
+// sortedWithContext returns a slice of the sorted elements of the set
+// using the provided context.
+func (s *Set[T]) sortedWithContext(ctx context.Context,
+	fns ...func(a, b T) bool) ([]T, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	// Create a temporary slice of sortMarker[T] to hold
 	// the data and sort it.
 	tmp := make([]sortingElement[T], 0, len(s.heap)) // here is the change
 	for k, v := range s.heap {
 		tmp = append(tmp, sortingElement[T]{key: k, value: v})
+		select {
+		case <-ctx.Done():
+			return []T{}, ctx.Err()
+		default:
+		}
 	}
 
+	// Sort the temporary slice.
+	runtime.Gosched()
 	if len(fns) == 0 {
 		sort.Slice(tmp, func(i, j int) bool {
 			return tmp[i].key < tmp[j].key
@@ -406,11 +568,17 @@ func (s *Set[T]) Sorted(fns ...func(a, b T) bool) []T {
 
 	// Create a new slice of T and copy the values over.
 	var result = make([]T, len(tmp))
+	runtime.Gosched()
 	for i, v := range tmp {
 		result[i] = v.value
+		select {
+		case <-ctx.Done():
+			return []T{}, ctx.Err()
+		default:
+		}
 	}
 
-	return result
+	return result, nil
 }
 
 // Append adds all elements from the provided sets to the current set.
@@ -458,12 +626,28 @@ func (s *Set[T]) Extend(sets []*Set[T]) {
 //
 //	copied := s.Copy() // copied contains 1, 2, 3
 func (s *Set[T]) Copy() *Set[T] {
+	r, _ := s.copyWithContext(s.ctx)
+	return r
+}
+
+// copyWithContext returns a new set with a copy of items in the set
+// using the provided context.
+func (s *Set[T]) copyWithContext(ctx context.Context) (*Set[T], error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	result := New[T]()
 	for _, v := range s.heap {
 		result.Add(v)
+		select {
+		case <-ctx.Done():
+			return &Set[T]{}, ctx.Err()
+		default:
+		}
 	}
 
-	return result
+	return result, nil
 }
 
 // Clear removes all items from the set.
@@ -482,12 +666,12 @@ func (s *Set[T]) Clear() {
 //
 // Example usage:
 //
-//		s := set.New[int]()
-//		s.Add(1, 2, 3)
-//		s.Elements() // returns []int{1, 2, 3}
+//	s := set.New[int]()
+//	s.Add(1, 2, 3)
+//	s.Elements() // returns []int{1, 2, 3}
 //
-//	 s.Overwrite(5, 6, 7) // as s.Clear() and s.Add(5, 6, 7)
-//		s.Elements() // returns []int{5, 6, 7}
+//	s.Overwrite(5, 6, 7) // as s.Clear() and s.Add(5, 6, 7)
+//	s.Elements() // returns []int{5, 6, 7}
 func (s *Set[T]) Overwrite(items ...T) {
 	s.Clear()
 	s.Add(items...)
