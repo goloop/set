@@ -716,6 +716,132 @@ func (s *Set[T]) Reduce(fn func(acc, item T) T) T {
 	return acc
 }
 
+// copyWithContext returns a new set with a copy of items in the set
+// using the provided context.
+func (s *Set[T]) copyWithContext(ctx context.Context) (*Set[T], error) {
+	// If the context is nil, create a new default context.
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	// Create a new set to store the results.
+	result := New[T]()
+	for _, v := range s.heap {
+		if err := result.addWithContext(ctx, v); err != nil {
+			return New[T](), err
+		}
+	}
+
+	return result, nil
+}
+
+// Copy returns a new set with a copy of items in the set.
+// This is useful when you want to copy the set.
+//
+// Example usage:
+//
+//	s := set.New[int]()
+//	s.Add(1, 2, 3)
+//
+//	copied := s.Copy() // copied contains 1, 2, 3
+func (s *Set[T]) Copy() *Set[T] {
+	r, _ := s.copyWithContext(s.ctx)
+	return r
+}
+
+// appendWithContext adds all elements from the provided sets to the current
+// set using the provided context.
+func (s *Set[T]) appendWithContext(
+	ctx context.Context,
+	sets ...*Set[T],
+) error {
+	// If the context is nil, create a new default context.
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	// Add all elements from the provided sets to the current set.
+	for _, set := range sets {
+		for _, v := range set.heap {
+			if err := s.addWithContext(ctx, v); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+// Append adds all elements from the provided sets to the current set.
+//
+// Example usage:
+//
+//	s1 := set.New[int]()
+//	s1.Add(1, 2, 3)
+//
+//	s2 := New[int]()
+//	s2.Add(4, 5, 6)
+//
+//	s1.Append(s2)  // s1 now contains 1, 2, 3, 4, 5, 6
+func (s *Set[T]) Append(sets ...*Set[T]) {
+	s.appendWithContext(s.ctx, sets...)
+}
+
+// extendWithContext adds all elements from the provided sets to the current
+// set using the provided context.
+func (s *Set[T]) extendWithContext(
+	ctx context.Context,
+	sets []*Set[T],
+) error {
+	return s.appendWithContext(ctx, sets...)
+}
+
+// Extend adds all elements from the provided slice of sets to the current set.
+//
+// Example usage:
+//
+//	s1 := set.New[int]()
+//	s1.Add(1, 2, 3)
+//
+//	s2 := set.New[int]()
+//	s2.Add(4, 5, 6)
+//
+//	s1.Extend(s2)  // s1 now contains 1, 2, 3, 4, 5, 6
+func (s *Set[T]) Extend(sets []*Set[T]) {
+	s.extendWithContext(s.ctx, sets)
+}
+
+// overwriteWithContext removes all items from the set and adds the provided
+// items using the provided context.
+func (s *Set[T]) overwriteWithContext(
+	ctx context.Context,
+	items ...T,
+) error {
+	// If the context is nil, create a new default context.
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	// Clear the set.
+	s.Clear()
+	return s.addWithContext(ctx, items...)
+}
+
+// Overwrite removes all items from the set and adds the provided items.
+//
+// Example usage:
+//
+//	s := set.New[int]()
+//	s.Add(1, 2, 3)
+//	s.Elements() // returns []int{1, 2, 3}
+//
+//	s.Overwrite(5, 6, 7) // as s.Clear() and s.Add(5, 6, 7)
+//	s.Elements() // returns []int{5, 6, 7}
+func (s *Set[T]) Overwrite(items ...T) {
+	s.Clear()
+	s.addWithContext(s.ctx, items...)
+}
+
 // isSubsetWithContext returns true if all items in the first
 // set exist in the second.
 func (s *Set[T]) isSubsetWithContext(
@@ -813,75 +939,6 @@ func (s *Set[T]) IsSuper(set *Set[T]) bool {
 	return s.IsSuperset(set)
 }
 
-// copyWithContext returns a new set with a copy of items in the set
-// using the provided context.
-func (s *Set[T]) copyWithContext(ctx context.Context) (*Set[T], error) {
-	if ctx == nil {
-		ctx = context.Background()
-	}
-
-	result := New[T]()
-	for _, v := range s.heap {
-		result.Add(v)
-		select {
-		case <-ctx.Done():
-			return New[T](), ctx.Err()
-		default:
-		}
-	}
-
-	return result, nil
-}
-
-// Copy returns a new set with a copy of items in the set.
-// This is useful when you want to copy the set.
-//
-// Example usage:
-//
-//	s := set.New[int]()
-//	s.Add(1, 2, 3)
-//
-//	copied := s.Copy() // copied contains 1, 2, 3
-func (s *Set[T]) Copy() *Set[T] {
-	r, _ := s.copyWithContext(s.ctx)
-	return r
-}
-
-// Append adds all elements from the provided sets to the current set.
-//
-// Example usage:
-//
-//	s1 := set.New[int]()
-//	s1.Add(1, 2, 3)
-//
-//	s2 := New[int]()
-//	s2.Add(4, 5, 6)
-//
-//	s1.Append(s2)  // s1 now contains 1, 2, 3, 4, 5, 6
-func (s *Set[T]) Append(sets ...*Set[T]) {
-	for _, set := range sets {
-		for _, v := range set.heap {
-			s.Add(v)
-		}
-	}
-}
-
-// Extend is an alias for Append. It adds all elements from
-// the provided sets to the current set.
-//
-// Example usage:
-//
-//	s1 := set.New[int]()
-//	s1.Add(1, 2, 3)
-//
-//	s2 := set.New[int]()
-//	s2.Add(4, 5, 6)
-//
-//	s1.Extend(s2)  // s1 now contains 1, 2, 3, 4, 5, 6
-func (s *Set[T]) Extend(sets []*Set[T]) {
-	s.Append(sets...)
-}
-
 // Clear removes all items from the set.
 //
 // Example usage:
@@ -894,19 +951,27 @@ func (s *Set[T]) Clear() {
 	s.heap = make(map[string]T)
 }
 
-// Overwrite removes all items from the set and adds the provided items.
-//
-// Example usage:
-//
-//	s := set.New[int]()
-//	s.Add(1, 2, 3)
-//	s.Elements() // returns []int{1, 2, 3}
-//
-//	s.Overwrite(5, 6, 7) // as s.Clear() and s.Add(5, 6, 7)
-//	s.Elements() // returns []int{5, 6, 7}
-func (s *Set[T]) Overwrite(items ...T) {
-	s.Clear()
-	s.Add(items...)
+// filterWithContext returns a new set with items that satisfy the provided
+// predicate.
+func (s *Set[T]) filterWithContext(
+	ctx context.Context,
+	fn func(item T) bool,
+) (*Set[T], error) {
+	// If the context is nil, create a new default context.
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	result := New[T]()
+	for _, v := range s.heap {
+		if fn(v) {
+			if err := result.addWithContext(ctx, v); err != nil {
+				return New[T](), err
+			}
+		}
+	}
+
+	return result, nil
 }
 
 // Filter returns a new set with items that satisfy the provided predicate.
@@ -920,14 +985,34 @@ func (s *Set[T]) Overwrite(items ...T) {
 //		return item > 3
 //	}) // filtered contains 4, 5
 func (s *Set[T]) Filter(fn func(item T) bool) *Set[T] {
-	result := New[T]()
+	r, _ := s.filterWithContext(s.ctx, fn)
+	return r
+}
+
+// anyWithContext returns true if any of the items in the set satisfy
+// the provided predicate.
+func (s *Set[T]) anyWithContext(
+	ctx context.Context,
+	fn func(item T) bool,
+) (bool, error) {
+	// If the context is nil, create a new default context.
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	for _, v := range s.heap {
 		if fn(v) {
-			result.Add(v)
+			return true, nil
+		}
+
+		select {
+		case <-ctx.Done():
+			return false, ctx.Err()
+		default:
 		}
 	}
 
-	return result
+	return false, nil
 }
 
 // Any returns true if any of the items in the set satisfy
@@ -942,13 +1027,34 @@ func (s *Set[T]) Filter(fn func(item T) bool) *Set[T] {
 //		return item > 2
 //	}) // any is true
 func (s *Set[T]) Any(fn func(item T) bool) bool {
+	r, _ := s.anyWithContext(s.ctx, fn)
+	return r
+}
+
+// allWithContext returns true if all of the items in the set satisfy
+// the provided predicate.
+func (s *Set[T]) allWithContext(
+	ctx context.Context,
+	fn func(item T) bool,
+) (bool, error) {
+	// If the context is nil, create a new default context.
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	for _, v := range s.heap {
-		if fn(v) {
-			return true
+		if !fn(v) {
+			return false, nil
+		}
+
+		select {
+		case <-ctx.Done():
+			return false, ctx.Err()
+		default:
 		}
 	}
 
-	return false
+	return true, nil
 }
 
 // All returns true if all of the items in the set satisfy
@@ -963,11 +1069,6 @@ func (s *Set[T]) Any(fn func(item T) bool) bool {
 //		return item > 2
 //	}) // all is false
 func (s *Set[T]) All(fn func(item T) bool) bool {
-	for _, v := range s.heap {
-		if !fn(v) {
-			return false
-		}
-	}
-
-	return true
+	r, _ := s.allWithContext(s.ctx, fn)
+	return r
 }

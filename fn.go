@@ -526,18 +526,65 @@ func ReduceWithContext[T any, R any](
 //
 // Example usage:
 //
-//	type User struct {
-//			Name string
-//			Age  int
-//	}
+//		type User struct {
+//				Name string
+//				Age  int
+//		}
 //
 //	 s := set.New[User]()
 //	 s.Add(User{"John", 20}, User{"Jane", 30})
 //
 //	 sum := sort.Reduce(s, func(acc int, item User) int {
-//			return acc + item.Age
+//	     return acc + item.Age
 //	 }) // sum is 50
 func Reduce[T any, R any](s *Set[T], fn func(acc R, item T) R) R {
 	r, _ := ReduceWithContext[T, R](nil, s, fn)
 	return r
+}
+
+// CopyWithContext returns a new set with all the items from the set.
+// The function is passed a context.Context as the first argument.
+func CopyWithContext[T any](
+	ctx context.Context,
+	s *Set[T],
+) (*Set[T], error) {
+	return s.copyWithContext(ctx)
+}
+
+// Copy returns a new set with all the items from the set.
+//
+// Example usage:
+//
+//	s1 := set.New[int](1, 2, 3)
+//	s2 := set.Copy(s1)
+//	fmt.Println(s2.Sorted()) // 1, 2, 3
+func Copy[T any](s *Set[T]) *Set[T] {
+	r, _ := CopyWithContext[T](nil, s)
+	return r
+}
+
+// FilterWithContext returns a new set with all the items from the set that
+// pass the test implemented by the provided function.
+// The function is passed a context.Context as the first argument.
+func FilterWithContext[T any](
+	ctx context.Context,
+	s *Set[T],
+	fn func(item T) bool,
+) (*Set[T], error) {
+	// If the context is nil, create a new one.
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	// Add all the items from the set.
+	result := New[T]()
+	for _, v := range s.heap {
+		if fn(v) {
+			if err := result.addWithContext(ctx, v); err != nil {
+				return New[T](), err
+			}
+		}
+	}
+
+	return result, nil
 }
