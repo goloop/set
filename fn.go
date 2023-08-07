@@ -2,6 +2,7 @@ package set
 
 import (
 	"context"
+	"reflect"
 	"runtime"
 )
 
@@ -64,97 +65,159 @@ func NewWithContext[T any](ctx context.Context, items ...T) *Set[T] {
 	return &set
 }
 
-// Map returns a new set with the results of applying the provided function
-// to each item in the set.
+// AddWithContext adds the provided items to the set.
+//
+// The function takes a context as the first argument and
+// can be interrupted externally.
+func AddWithContext[T any](ctx context.Context, s *Set[T], items ...T) error {
+	return s.addWithContext(ctx, items...)
+}
+
+// Add adds the provided items to the set.
 //
 // Example usage:
 //
-//	type User struct {
-//	    Name string
-//	    Age  int
-//	}
-//
-//	s := set.New[User]()
-//	s.Add(User{"John", 20}, User{"Jane", 30})
-//
-//	names := sort.Map(s, func(item User) string {
-//	    return item.Name
-//	})
-//
-//	fmt.Println(names.Elements()) // "Jane", "John"
-func Map[T any, R any](s *Set[T], fn func(item T) R) *Set[R] {
-	r, _ := MapWithContext[T, R](nil, s, fn)
-	return r
+//	s := set.New[int]()
+//	set.Add(s, 1, 2, 3) // s is 1, 2, 3
+func Add[T any](s *Set[T], items ...T) {
+	s.Add(items...)
 }
 
-// MapWithContext returns a new set with the results of applying the provided
-// function to each item in the set. The function is passed a context.Context
-// as the first argument.
-func MapWithContext[T any, R any](ctx context.Context,
-	s *Set[T], fn func(item T) R) (*Set[R], error) {
-	result := New[R]()
+// DeleteWithContext deletes the provided items from the set.
+//
+// The function takes a context as the first argument and
+// can be interrupted externally.
+func DeleteWithContext[T any](
+	ctx context.Context,
+	s *Set[T],
+	items ...T,
+) error {
+	return s.deleteWithContext(ctx, items...)
+}
 
+// Delete deletes the provided items from the set.
+//
+// Example usage:
+//
+//	s := set.New[int]()
+//	set.Add(s, 1, 2, 3) // s is 1, 2, 3
+//	set.Delete(s, 1, 2) // s is 3
+func Delete[T any](s *Set[T], items ...T) {
+	s.Delete(items...)
+}
+
+// ContainsWithContext returns true if the set contains all of the provided
+// items, otherwise it returns false.
+//
+// The function takes a context as the first argument and
+// can be interrupted externally.
+func ContainsWithContext[T any](
+	ctx context.Context,
+	s *Set[T],
+	item T,
+) (bool, error) {
+	return s.containsWithContext(ctx, item)
+}
+
+// Contains returns true if the set contains all of the provided
+// items, otherwise it returns false.
+//
+// Example usage:
+//
+//	s := set.New[int]()
+//	set.Add(s, 1, 2, 3) // s is 1, 2, 3
+//	set.Contains(s, 1)  // returns true
+//	set.Contains(s, 4)  // returns false
+func Contains[T any](s *Set[T], item T) bool {
+	return s.Contains(item)
+}
+
+// ElementsWithContext returns a slice of the elements of the set using the
+// provided context.
+//
+// The function takes a context as the first argument and
+// can be interrupted externally.
+func ElementsWithContext[T any](ctx context.Context, s *Set[T]) ([]T, error) {
+	return s.elementsWithContext(ctx)
+}
+
+// Elements returns a slice of the elements of the set.
+func Elements[T any](s *Set[T]) []T {
+	return s.Elements()
+}
+
+// SortedWithContext returns a slice of the sorted elements of the set
+// using the provided context.
+//
+// The function takes a context as the first argument and
+// can be interrupted externally.
+func SortedWithContext[T any](ctx context.Context, s *Set[T],
+	fns ...func(a, b T) bool) ([]T, error) {
+	return s.sortedWithContext(ctx, fns...)
+}
+
+// Sorted returns a slice of the sorted elements of the set.
+func Sorted[T any](s *Set[T], fns ...func(a, b T) bool) []T {
+	return s.Sorted(fns...)
+}
+
+// FilteredWithContext returns a slice of the elements of the set that
+// satisfy the provided filter function using the provided context.
+//
+// The function takes a context as the first argument and
+// can be interrupted externally.
+func FilteredWithContext[T any](
+	ctx context.Context,
+	s *Set[T],
+	fn func(item T) bool,
+) ([]T, error) {
+	return s.filteredWithContext(ctx, fn)
+}
+
+// Filtered returns a slice of the elements of the set that
+// satisfy the provided filter function.
+func Filtered[T any](s *Set[T], fn func(item T) bool) []T {
+	return s.Filtered(fn)
+}
+
+// Len returns the number of items in the set.
+func Len[T any](s *Set[T]) int {
+	return s.Len()
+}
+
+// UnionWithContext returns a new set with all the items that are in either
+// the set or in the other set.
+//
+// The function takes a context as the first argument and
+// can be interrupted externally.
+func UnionWithContext[T any](
+	ctx context.Context,
+	s *Set[T],
+	others ...*Set[T],
+) (*Set[T], error) {
+	// If the context is nil, create a new one.
 	if ctx == nil {
 		ctx = context.Background()
 	}
 
+	// Create a new set and add all the items from the current set.
+	result := New[T]()
 	for _, v := range s.heap {
-		result.Add(fn(v))
-		select {
-		case <-ctx.Done():
-			return New[R](), ctx.Err()
-		default:
+		if err := result.addWithContext(ctx, v); err != nil {
+			return New[T](), err
+		}
+	}
+
+	// Add all the items from the other sets.
+	for _, other := range others {
+		for _, v := range other.heap {
+			if err := result.addWithContext(ctx, v); err != nil {
+				return New[T](), err
+			}
 		}
 	}
 
 	return result, nil
-}
-
-// Reduce returns a single value by applying the provided function to each
-// item in the set and passing the result of previous function call as the
-// first argument in the next call.
-//
-// Example usage:
-//
-//	type User struct {
-//			Name string
-//			Age  int
-//	}
-//
-//	 s := set.New[User]()
-//	 s.Add(User{"John", 20}, User{"Jane", 30})
-//
-//	 sum := sort.Reduce(s, func(acc int, item User) int {
-//			return acc + item.Age
-//	 }) // sum is 50
-func Reduce[T any, R any](s *Set[T], fn func(acc R, item T) R) R {
-	r, _ := ReduceWithContext[T, R](nil, s, fn)
-	return r
-}
-
-// ReduceWithContext returns a single value by applying the provided function
-// to each item in the set and passing the result of previous function call as
-// the first argument in the next call.
-//
-// The function is passed a context.Context as the first argument.
-func ReduceWithContext[T any, R any](ctx context.Context,
-	s *Set[T], fn func(acc R, item T) R) (R, error) {
-	var acc R
-
-	if ctx == nil {
-		ctx = context.Background()
-	}
-
-	for _, v := range s.heap {
-		acc = fn(acc, v)
-		select {
-		case <-ctx.Done():
-			return acc, ctx.Err()
-		default:
-		}
-	}
-
-	return acc, nil
 }
 
 // Union returns a new set with all the items that are in either the set
@@ -174,33 +237,53 @@ func Union[T any](s *Set[T], others ...*Set[T]) *Set[T] {
 	return r
 }
 
-// UnionWithContext returns a new set with all the items that are in either
-// the set or in the other set.
-func UnionWithContext[T any](ctx context.Context,
-	s *Set[T], others ...*Set[T]) (*Set[T], error) {
-	result := New[T]()
-
+// IntersectionWithContext returns a new set with all the items
+// that are in both the set and in the other set.
+//
+// The function takes a context as the first argument and
+// can be interrupted externally.
+func IntersectionWithContext[T any](
+	ctx context.Context,
+	s *Set[T],
+	others ...*Set[T],
+) (*Set[T], error) {
+	// If the context is nil, create a new one.
 	if ctx == nil {
 		ctx = context.Background()
 	}
 
+	// Create a new set.
+	result := New[T]()
 	for _, v := range s.heap {
-		result.Add(v)
-	}
+		found := true
+		for _, other := range others {
+			ok, err := other.containsWithContext(ctx, v)
+			if !ok && err == nil {
+				found = false
+				break
+			} else if err != nil {
+				return New[T](), err
+			}
+		}
 
-	for _, other := range others {
-		for _, v := range other.heap {
-			result.Add(v)
-
-			select {
-			case <-ctx.Done():
-				return New[T](), ctx.Err()
-			default:
+		// If the item is in all the other sets, add it to the result.
+		if found {
+			if err := result.addWithContext(ctx, v); err != nil {
+				return New[T](), err
 			}
 		}
 	}
 
 	return result, nil
+}
+
+// InterWithContext is a shortcut for IntersectionWithContext.
+func InterWithContext[T any](
+	ctx context.Context,
+	s *Set[T],
+	others ...*Set[T],
+) (*Set[T], error) {
+	return IntersectionWithContext(ctx, s, others...)
 }
 
 // Intersection returns a new set with all the items that are in both the
@@ -225,43 +308,49 @@ func Inter[T any](s *Set[T], others ...*Set[T]) *Set[T] {
 	return Intersection(s, others...)
 }
 
-// IntersectionWithContext returns a new set with all the items
-// that are in both the set and in the other set.
-func IntersectionWithContext[T any](ctx context.Context,
-	s *Set[T], others ...*Set[T]) (*Set[T], error) {
-	result := New[T]()
+// DifferenceWithContext returns a new set with all the items that are in
+// the set but not in the other set.
+func DifferenceWithContext[T any](
+	ctx context.Context,
+	s *Set[T],
+	others ...*Set[T],
+) (*Set[T], error) {
 
+	// If the context is nil, create a new one.
 	if ctx == nil {
 		ctx = context.Background()
 	}
 
+	// Create a new set and add all the items from the current set.
+	result := New[T]()
 	for _, v := range s.heap {
-		isInAll := true
-		for _, other := range others {
-			if !other.Contains(v) {
-				isInAll = false
-				break
+		if err := result.addWithContext(ctx, v); err != nil {
+			return New[T](), err
+		}
+	}
+
+	// Remove all the items from the other sets.
+	for _, other := range others {
+		for _, v := range other.heap {
+			ok, err := result.containsWithContext(ctx, v)
+			if ok && err == nil {
+				result.Delete(v)
+			} else if err != nil {
+				return New[T](), err
 			}
-		}
-
-		if isInAll {
-			result.Add(v)
-		}
-
-		select {
-		case <-ctx.Done():
-			return New[T](), ctx.Err()
-		default:
 		}
 	}
 
 	return result, nil
 }
 
-// InterWithContext is a shortcut for IntersectionWithContext.
-func InterWithContext[T any](ctx context.Context,
-	s *Set[T], others ...*Set[T]) (*Set[T], error) {
-	return IntersectionWithContext(ctx, s, others...)
+// DiffWithContext is an alias for DifferenceWithContext.
+func DiffWithContext[T any](
+	ctx context.Context,
+	s *Set[T],
+	others ...*Set[T],
+) (*Set[T], error) {
+	return DifferenceWithContext(ctx, s, others...)
 }
 
 // Difference returns a new set with all the items that are in the set but
@@ -286,30 +375,37 @@ func Diff[T any](s *Set[T], others ...*Set[T]) *Set[T] {
 	return Difference(s, others...)
 }
 
-// DifferenceWithContext returns a new set with all the items that are in
-// the set but not in the other set.
-func DifferenceWithContext[T any](ctx context.Context,
-	s *Set[T], others ...*Set[T]) (*Set[T], error) {
-	result := New[T]()
-
+// SymmetricDifferenceWithContext returns a new set with all the items that
+// are in the set or in the other set but not in both.
+func SymmetricDifferenceWithContext[T any](
+	ctx context.Context,
+	s *Set[T],
+	others ...*Set[T],
+) (*Set[T], error) {
+	// If the context is nil, create a new one.
 	if ctx == nil {
 		ctx = context.Background()
 	}
 
+	// Add all the items from the set.
+	result := New[T]()
 	for _, v := range s.heap {
-		result.Add(v)
+		if err := result.addWithContext(ctx, v); err != nil {
+			return New[T](), err
+		}
 	}
 
+	// Fiilter out the items that are in both sets.
+	runtime.Gosched()
 	for _, other := range others {
 		for _, v := range other.heap {
-			if result.Contains(v) {
+			ok, err := result.containsWithContext(ctx, v)
+			if ok && err == nil {
 				result.Delete(v)
-			}
-
-			select {
-			case <-ctx.Done():
-				return New[T](), ctx.Err()
-			default:
+			} else if !ok && err == nil {
+				result.Add(v)
+			} else if err != nil {
+				return New[T](), err
 			}
 		}
 	}
@@ -317,10 +413,13 @@ func DifferenceWithContext[T any](ctx context.Context,
 	return result, nil
 }
 
-// DiffWithContext is an alias for DifferenceWithContext.
-func DiffWithContext[T any](ctx context.Context,
-	s *Set[T], others ...*Set[T]) (*Set[T], error) {
-	return DifferenceWithContext(ctx, s, others...)
+// SdiffWithContext is an alias for SymmetricDifferenceWithContext.
+func SdiffWithContext[T any](
+	ctx context.Context,
+	s *Set[T],
+	others ...*Set[T],
+) (*Set[T], error) {
+	return SymmetricDifferenceWithContext(ctx, s, others...)
 }
 
 // SymmetricDifference returns a new set with all the items that are in the
@@ -345,67 +444,100 @@ func Sdiff[T any](s *Set[T], others ...*Set[T]) *Set[T] {
 	return SymmetricDifference(s, others...)
 }
 
-// SymmetricDifferenceWithContext returns a new set with all the items that
-// are in the set or in the other set but not in both.
-func SymmetricDifferenceWithContext[T any](ctx context.Context,
-	s *Set[T], others ...*Set[T]) (*Set[T], error) {
-	result := New[T]()
-
+// MapWithContext returns a new set with the results of applying the provided
+// function to each item in the set. The function is passed a context.Context
+// as the first argument.
+func MapWithContext[T any, R any](
+	ctx context.Context,
+	s *Set[T],
+	fn func(item T) R,
+) (*Set[R], error) {
+	// If the context is nil, create a new one.
 	if ctx == nil {
 		ctx = context.Background()
 	}
 
 	// Add all the items from the set.
+	result := New[R]()
 	for _, v := range s.heap {
-		result.Add(v)
-	}
-
-	// Fiilter out the items that are in both sets.
-	runtime.Gosched()
-	for _, other := range others {
-		for _, v := range other.heap {
-			if result.Contains(v) {
-				result.Delete(v)
-			} else {
-				result.Add(v)
-			}
-
-			select {
-			case <-ctx.Done():
-				return New[T](), ctx.Err()
-			default:
-			}
+		if err := result.addWithContext(ctx, fn(v)); err != nil {
+			return New[R](), err
 		}
 	}
 
 	return result, nil
 }
 
-// SdiffWithContext is an alias for SymmetricDifferenceWithContext.
-func SdiffWithContext[T any](ctx context.Context,
-	s *Set[T], others ...*Set[T]) (*Set[T], error) {
-	return SymmetricDifferenceWithContext(ctx, s, others...)
+// Map returns a new set with the results of applying the provided function
+// to each item in the set.
+//
+// Example usage:
+//
+//	type User struct {
+//	    Name string
+//	    Age  int
+//	}
+//
+//	s := set.New[User]()
+//	s.Add(User{"John", 20}, User{"Jane", 30})
+//
+//	names := sort.Map(s, func(item User) string {
+//	    return item.Name
+//	})
+//
+//	fmt.Println(names.Elements()) // "Jane", "John"
+func Map[T any, R any](s *Set[T], fn func(item T) R) *Set[R] {
+	r, _ := MapWithContext[T, R](nil, s, fn)
+	return r
 }
 
-// Elements returns a slice of the elements of the set.
-func Elements[T any](s *Set[T]) []T {
-	return s.Elements()
+// ReduceWithContext returns a single value by applying the provided function
+// to each item in the set and passing the result of previous function call as
+// the first argument in the next call.
+//
+// The function is passed a context.Context as the first argument.
+func ReduceWithContext[T any, R any](
+	ctx context.Context,
+	s *Set[T],
+	fn func(acc R, item T) R,
+) (R, error) {
+	// If the context is nil, create a new one.
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	var acc R
+	for _, v := range s.heap {
+		acc = fn(acc, v)
+		select {
+		case <-ctx.Done():
+			z := reflect.Zero(reflect.TypeOf((*R)(nil)).Elem()).Interface().(R)
+			return z, ctx.Err()
+		default:
+		}
+	}
+
+	return acc, nil
 }
 
-// ElementsWithContext returns a slice of the elements of the set using the
-// provided context.
-func ElementsWithContext[T any](ctx context.Context, s *Set[T]) ([]T, error) {
-	return s.elementsWithContext(ctx)
-}
-
-// Sorted returns a slice of the sorted elements of the set.
-func Sorted[T any](s *Set[T], fns ...func(a, b T) bool) []T {
-	return s.Sorted(fns...)
-}
-
-// SortedWithContext returns a slice of the sorted elements of the set
-// using the provided context.
-func SortedWithContext[T any](ctx context.Context, s *Set[T],
-	fns ...func(a, b T) bool) ([]T, error) {
-	return s.sortedWithContext(ctx, fns...)
+// Reduce returns a single value by applying the provided function to each
+// item in the set and passing the result of previous function call as the
+// first argument in the next call.
+//
+// Example usage:
+//
+//	type User struct {
+//			Name string
+//			Age  int
+//	}
+//
+//	 s := set.New[User]()
+//	 s.Add(User{"John", 20}, User{"Jane", 30})
+//
+//	 sum := sort.Reduce(s, func(acc int, item User) int {
+//			return acc + item.Age
+//	 }) // sum is 50
+func Reduce[T any, R any](s *Set[T], fn func(acc R, item T) R) R {
+	r, _ := ReduceWithContext[T, R](nil, s, fn)
+	return r
 }

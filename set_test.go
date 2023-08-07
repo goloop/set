@@ -27,7 +27,7 @@ func TestToHashSimple(t *testing.T) {
 
 	set := New[int]()
 	for _, tc := range tests {
-		result := set.toHash(tc.input)
+		result := set.toHash(nil, tc.input)
 		if result != tc.expected {
 			t.Errorf("%s: expected %v, but got %v",
 				tc.name, tc.expected, result)
@@ -71,7 +71,7 @@ func TestToStr(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			got := toStr(reflect.ValueOf(test.input))
+			got := toStr(nil, reflect.ValueOf(test.input))
 			if got != test.want {
 				t.Errorf("toStr(%s) = %s, want %s", test.name, got, test.want)
 			}
@@ -100,7 +100,7 @@ func TestToHashComplex(t *testing.T) {
 
 	set := New[complexType]()
 	for _, tc := range tests {
-		result := set.toHash(tc.input)
+		result := set.toHash(nil, tc.input)
 		if result != tc.expected {
 			t.Errorf("Test %s: expected %v, but got %v",
 				tc.name, tc.expected, result)
