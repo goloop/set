@@ -80,7 +80,7 @@ func AddWithContext[T any](ctx context.Context, s *Set[T], items ...T) error {
 //	s := set.New[int]()
 //	set.Add(s, 1, 2, 3) // s is 1, 2, 3
 func Add[T any](s *Set[T], items ...T) {
-	s.Add(items...)
+	AddWithContext[T](nil, s, items...)
 }
 
 // DeleteWithContext deletes the provided items from the set.
@@ -103,7 +103,7 @@ func DeleteWithContext[T any](
 //	set.Add(s, 1, 2, 3) // s is 1, 2, 3
 //	set.Delete(s, 1, 2) // s is 3
 func Delete[T any](s *Set[T], items ...T) {
-	s.Delete(items...)
+	DeleteWithContext[T](nil, s, items...)
 }
 
 // ContainsWithContext returns true if the set contains all of the provided

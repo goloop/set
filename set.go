@@ -18,7 +18,6 @@ import (
 	"reflect"
 	"runtime"
 	"sort"
-	"strings"
 )
 
 // sortingElement is a helper struct that is used to sort the set.
@@ -46,76 +45,26 @@ type Set[T any] struct {
 // uses the 'valueToString' function to create a string representation of the
 // object. This function is mainly used as a helper function to create unique
 // keys for the 'heap' map in the Set.
-func (s *Set[T]) toHash(ctx context.Context, obj T) string {
-	// I think there is no point in hashing the result string or doing
-	// something like strip - it's just additional resources for string
-	// conversion.
-	if s.IsSimple() {
-		return fmt.Sprintf("%v", obj)
-	}
-
-	return toStr(ctx, reflect.ValueOf(obj))
-}
-
-// toStr is a helper function that takes a reflect.Value and creates a
-// string representation of it. This function uses a switch statement to
-// handle different kinds of complex types like Struct, Array, Slice, Map,
-// Ptr, Interface, and Func. For each kind, it recursively builds a string
-// representation and joins them together. If the kind doesn't fall into one of
-// these categories, it uses the built-in Sprintf function to create a string.
-// This function is mainly used by 'toHash' function to create unique keys for
-// complex objects in the Set.
-func toStr(ctx context.Context, v reflect.Value) string {
+func (s *Set[T]) toHash(ctx context.Context, obj T) (string, error) {
 	// If the context is nil, create a new one.
 	if ctx == nil {
 		ctx = context.Background()
 	}
 
-	// If the context is done, return an empty string.
-	select {
-	case <-ctx.Done():
-		return ""
-	default:
+	// I think there is no point in hashing the result string or doing
+	// something like strip - it's just additional resources for string
+	// conversion.
+	if s.IsSimple() {
+		select {
+		case <-ctx.Done():
+			return "", ctx.Err()
+		default:
+		}
+
+		return fmt.Sprintf("%v", obj), nil
 	}
 
-	// Create a string representation of the given reflect.Value.
-	// This procedure performs a recursive call toStr.
-	switch v.Kind() {
-	case reflect.Struct:
-		var r []string
-		t := v.Type()
-		for i := 0; i < v.NumField(); i++ {
-			name := t.Field(i).Name
-			value := toStr(ctx, v.Field(i))
-			r = append(r, fmt.Sprintf("%s:%s", name, value))
-		}
-		return "{" + strings.Join(r, ", ") + "}"
-	case reflect.Array, reflect.Slice:
-		var elements []string
-		for i := 0; i < v.Len(); i++ {
-			elements = append(elements, toStr(ctx, v.Index(i)))
-		}
-		return "[" + strings.Join(elements, ", ") + "]"
-	case reflect.Map:
-		var r []string
-		for _, k := range v.MapKeys() {
-			v := v.MapIndex(k)
-			r = append(r, fmt.Sprintf("%s:%s", toStr(ctx, k), toStr(ctx, v)))
-		}
-		return "{" + strings.Join(r, ", ") + "}"
-	case reflect.Ptr, reflect.Interface:
-		if v.IsNil() {
-			return "nil"
-		}
-		return toStr(ctx, v.Elem())
-	case reflect.Func:
-		if v.IsNil() {
-			return "func:nil"
-		}
-		return v.Type().String() + " Value"
-	default:
-		return fmt.Sprintf("%v", v)
-	}
+	return toStr(ctx, reflect.ValueOf(obj))
 }
 
 // IsSimple determines the complexity of the objects in the set, i.e.,
@@ -175,7 +124,12 @@ func (s *Set[T]) addWithContext(ctx context.Context, items ...T) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		default:
-			s.heap[s.toHash(s.ctx, v)] = v
+			name, err := s.toHash(ctx, v)
+			if err != nil {
+				return err
+			}
+
+			s.heap[name] = v
 		}
 	}
 
@@ -208,7 +162,12 @@ func (s *Set[T]) deleteWithContext(ctx context.Context, items ...T) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		default:
-			delete(s.heap, s.toHash(s.ctx, v))
+			name, err := s.toHash(ctx, v)
+			if err != nil {
+				return err
+			}
+
+			delete(s.heap, name)
 		}
 	}
 
@@ -239,7 +198,13 @@ func (s *Set[T]) containsWithContext(
 		ctx = context.Background()
 	}
 
-	_, ok := s.heap[s.toHash(s.ctx, item)]
+	// Get the hash of the item.
+	name, err := s.toHash(ctx, item)
+	if err != nil {
+		return false, err
+	}
+
+	_, ok := s.heap[name]
 	return ok, nil
 }
 
@@ -311,11 +276,11 @@ func (s *Set[T]) sortedWithContext(
 	// the data and sort it.
 	tmp := make([]sortingElement[T], 0, len(s.heap)) // here is the change
 	for k, v := range s.heap {
-		tmp = append(tmp, sortingElement[T]{key: k, value: v})
 		select {
 		case <-ctx.Done():
 			return []T{}, ctx.Err()
 		default:
+			tmp = append(tmp, sortingElement[T]{key: k, value: v})
 		}
 	}
 
@@ -337,11 +302,11 @@ func (s *Set[T]) sortedWithContext(
 	var result = make([]T, len(tmp))
 	runtime.Gosched()
 	for i, v := range tmp {
-		result[i] = v.value
 		select {
 		case <-ctx.Done():
 			return []T{}, ctx.Err()
 		default:
+			result[i] = v.value
 		}
 	}
 
@@ -374,14 +339,14 @@ func (s *Set[T]) filteredWithContext(
 
 	var result = make([]T, 0, len(s.heap))
 	for _, v := range s.heap {
-		if fn(v) {
-			result = append(result, v)
-		}
-
 		select {
 		case <-ctx.Done():
 			return []T{}, ctx.Err()
 		default:
+		}
+
+		if fn(v) {
+			result = append(result, v)
 		}
 	}
 
@@ -521,14 +486,14 @@ func (s *Set[T]) differenceWithContext(
 
 	result := New[T]()
 	for _, v := range s.heap {
-		if !set.Contains(v) {
-			result.Add(v)
-		}
-
 		select {
 		case <-ctx.Done():
 			return New[T](), ctx.Err()
 		default:
+		}
+
+		if !set.Contains(v) {
+			result.Add(v)
 		}
 	}
 
@@ -572,28 +537,28 @@ func (s *Set[T]) symmetricDifferenceWithContext(
 	// Elements of the base set.
 	result := New[T]()
 	for _, v := range s.heap {
-		if !set.Contains(v) {
-			result.Add(v)
-		}
-
 		select {
 		case <-ctx.Done():
 			return New[T](), ctx.Err()
 		default:
+		}
+
+		if !set.Contains(v) {
+			result.Add(v)
 		}
 	}
 
 	// Elements of the other set.
 	runtime.Gosched()
 	for _, v := range set.heap {
-		if !s.Contains(v) {
-			result.Add(v)
-		}
-
 		select {
 		case <-ctx.Done():
 			return New[T](), ctx.Err()
 		default:
+		}
+
+		if !s.Contains(v) {
+			result.Add(v)
 		}
 	}
 
@@ -637,12 +602,13 @@ func (s *Set[T]) mapWithContext(
 	// Create a new set to store the results.
 	result := New[T]()
 	for _, v := range s.heap {
-		result.Add(fn(v))
 		select {
 		case <-ctx.Done():
 			return New[T](), ctx.Err()
 		default:
 		}
+
+		result.Add(fn(v))
 	}
 
 	return result, nil
@@ -685,12 +651,13 @@ func (s *Set[T]) reduceWithContext(
 	// Calculate.
 	var acc T
 	for _, v := range s.heap {
-		acc = fn(acc, v)
 		select {
 		case <-ctx.Done():
 			return acc, ctx.Err()
 		default:
 		}
+
+		acc = fn(acc, v)
 	}
 
 	return acc, nil
@@ -853,16 +820,20 @@ func (s *Set[T]) isSubsetWithContext(
 		ctx = context.Background()
 	}
 
+	if s.Len() >= set.Len() {
+		return false, nil
+	}
+
 	// Elements of the set.
 	for _, v := range s.heap {
-		if !set.Contains(v) {
-			return false, nil
-		}
-
 		select {
 		case <-ctx.Done():
 			return false, ctx.Err()
 		default:
+		}
+
+		if !set.Contains(v) {
+			return false, nil
 		}
 	}
 
@@ -903,13 +874,20 @@ func (s *Set[T]) isSupersetWithContext(
 		ctx = context.Background()
 	}
 
+	// If s is smaller than set, it cannot be a superset.
+	if s.Len() < set.Len() {
+		return false, nil
+	}
+
 	// Elements of the other set.
 	for _, v := range set.heap {
 		ok, err := s.containsWithContext(ctx, v)
+		if err != nil {
+			return false, err
+		}
+
 		if !ok && err == nil {
 			return false, nil
-		} else if err != nil {
-			return false, err
 		}
 	}
 
@@ -934,8 +912,8 @@ func (s *Set[T]) IsSuperset(set *Set[T]) bool {
 	return r
 }
 
-// IsSuper is an alias for IsSuperset.
-func (s *Set[T]) IsSuper(set *Set[T]) bool {
+// IsSup is an alias for IsSuperset.
+func (s *Set[T]) IsSup(set *Set[T]) bool {
 	return s.IsSuperset(set)
 }
 
@@ -1001,14 +979,14 @@ func (s *Set[T]) anyWithContext(
 	}
 
 	for _, v := range s.heap {
-		if fn(v) {
-			return true, nil
-		}
-
 		select {
 		case <-ctx.Done():
 			return false, ctx.Err()
 		default:
+		}
+
+		if fn(v) {
+			return true, nil
 		}
 	}
 
@@ -1043,14 +1021,14 @@ func (s *Set[T]) allWithContext(
 	}
 
 	for _, v := range s.heap {
-		if !fn(v) {
-			return false, nil
-		}
-
 		select {
 		case <-ctx.Done():
 			return false, ctx.Err()
 		default:
+		}
+
+		if !fn(v) {
+			return false, nil
 		}
 	}
 

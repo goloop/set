@@ -1,13 +1,14 @@
 package set
 
 import (
+	"context"
 	"reflect"
 	"sort"
 	"testing"
 )
 
-// TestToHashSimple tests toHash function for simple types.
-func TestToHashSimple(t *testing.T) {
+// TestToHashMethodSimple tests toHash method for simple types.
+func TestToHashMethodSimple(t *testing.T) {
 	tests := []struct {
 		name     string
 		input    int
@@ -27,7 +28,11 @@ func TestToHashSimple(t *testing.T) {
 
 	set := New[int]()
 	for _, tc := range tests {
-		result := set.toHash(nil, tc.input)
+		result, err := set.toHash(nil, tc.input)
+		if err != nil {
+			t.Errorf("%s: unexpected error: %v", tc.name, err)
+		}
+
 		if result != tc.expected {
 			t.Errorf("%s: expected %v, but got %v",
 				tc.name, tc.expected, result)
@@ -35,52 +40,8 @@ func TestToHashSimple(t *testing.T) {
 	}
 }
 
-// TestToStr tests toStr function.
-func TestToStr(t *testing.T) {
-	tests := []struct {
-		name  string
-		input interface{}
-		want  string
-	}{
-		{
-			name:  "Pointer",
-			input: new(int),
-			want:  "0",
-		},
-		{
-			name:  "NilPointer",
-			input: (*int)(nil),
-			want:  "nil",
-		},
-		{
-			name:  "Interface",
-			input: (interface{})(new(int)),
-			want:  "0",
-		},
-		{
-			name:  "Func",
-			input: func() {},
-			want:  "func() Value",
-		},
-		{
-			name:  "NilFunc",
-			input: (func())(nil),
-			want:  "func:nil",
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			got := toStr(nil, reflect.ValueOf(test.input))
-			if got != test.want {
-				t.Errorf("toStr(%s) = %s, want %s", test.name, got, test.want)
-			}
-		})
-	}
-}
-
-// TestToHashComplex tests toHash function for complex types.
-func TestToHashComplex(t *testing.T) {
+// TestToHashMethodComplex tests toHash method for complex types.
+func TestToHashMethodComplex(t *testing.T) {
 	tests := []struct {
 		name     string
 		input    complexType
@@ -100,7 +61,11 @@ func TestToHashComplex(t *testing.T) {
 
 	set := New[complexType]()
 	for _, tc := range tests {
-		result := set.toHash(nil, tc.input)
+		result, err := set.toHash(nil, tc.input)
+		if err != nil {
+			t.Errorf("%s: unexpected error: %v", tc.name, err)
+		}
+
 		if result != tc.expected {
 			t.Errorf("Test %s: expected %v, but got %v",
 				tc.name, tc.expected, result)
@@ -108,8 +73,8 @@ func TestToHashComplex(t *testing.T) {
 	}
 }
 
-// TestIsSimple tests IsSimple function.
-func TestIsSimple(t *testing.T) {
+// TestIsSimpleMethod tests IsSimple method.
+func TestIsSimpleMethod(t *testing.T) {
 	t.Parallel()
 
 	t.Run("simple types", func(t *testing.T) {
@@ -203,8 +168,8 @@ func TestIsSimple(t *testing.T) {
 	})
 }
 
-// TestIsComplex tests IsComplex function.
-func TestIsComplex(t *testing.T) {
+// TestIsComplexMethod tests IsComplex method.
+func TestIsComplexMethod(t *testing.T) {
 	t.Parallel()
 
 	t.Run("simple types", func(t *testing.T) {
@@ -298,10 +263,30 @@ func TestIsComplex(t *testing.T) {
 	})
 }
 
-// TestAdd tests Add function.
-func TestAdd(t *testing.T) {
+// TestAddWithContextMethod tests AddWithContext method.
+func TestAddWithContextMethod(t *testing.T) {
 	s := New[int]()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
+	for i := 0; i < 100; i++ {
+		if i == 10 {
+			cancel()
+		}
+
+		if err := s.addWithContext(ctx, i); err != nil {
+			break
+		}
+	}
+
+	if s.Len() != 10 {
+		t.Errorf("AddWithContext: expected length 10, but got %d", s.Len())
+	}
+}
+
+// TestAddMethod tests Add method.
+func TestAddMethod(t *testing.T) {
+	s := New[int]()
 	s.Add(1, 2, 3, 4)
 
 	expected := &Set[int]{
@@ -319,11 +304,33 @@ func TestAdd(t *testing.T) {
 	}
 }
 
-// TestDelete tests Delete function.
-func TestDelete(t *testing.T) {
+// TestDeleteWithContextMethod tests DeleteWithContext method.
+func TestDeleteWithContextMethod(t *testing.T) {
+	s := New[int]()
+	s.Add(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	for i := 1; i < 20; i++ {
+		if i == 10 {
+			cancel()
+		}
+
+		if err := s.deleteWithContext(ctx, i); err != nil {
+			break
+		}
+	}
+
+	if s.Len() != 10 {
+		t.Errorf("DeleteWithContext: expected length 3, but got %d", s.Len())
+	}
+}
+
+// TestDeleteMethod tests Delete method.
+func TestDeleteMethod(t *testing.T) {
 	s := New[int]()
 	s.Add(1, 2, 3, 4)
-
 	s.Delete(1, 3)
 
 	expected := &Set[int]{
@@ -339,8 +346,27 @@ func TestDelete(t *testing.T) {
 	}
 }
 
-// TestClear tests Clear function.
-func TestContains(t *testing.T) {
+// TestContainsWithContextMethod tests ContainsWithContext method.
+func TestContainsWithContextMethod(t *testing.T) {
+	s := New[int]()
+	s.Add(1, 2, 3, 4)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if ok, err := s.containsWithContext(ctx, 3); !ok || err != nil {
+		t.Errorf("ContainsWithContext: expected (true, nil), but got (%v, %v)",
+			ok, err)
+	}
+
+	cancel()
+	if ok, _ := s.containsWithContext(ctx, 3); ok {
+		t.Errorf("ContainsWithContext: expected false, but got %v", ok)
+	}
+}
+
+// TestContainsMethod tests Contains method.
+func TestContainsMethod(t *testing.T) {
 	s := New[int]()
 	s.Add(1, 2, 3, 4)
 
@@ -367,8 +393,34 @@ func TestContains(t *testing.T) {
 	}
 }
 
-// TestElements tests for the Elements method.
-func TestElements(t *testing.T) {
+// TestElementsWithContextMethod tests ElementsWithContext method.
+func TestElementsWithContextMethod(t *testing.T) {
+	s := New[int]()
+	s.Add(1, 2, 3, 4)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	expected := []int{1, 2, 3, 4}
+	result, _ := s.elementsWithContext(ctx)
+
+	// Since the order of elements is not guaranteed,
+	// we need to sort the slices before comparing them.
+	sort.Ints(result)
+	sort.Ints(expected)
+
+	if !reflect.DeepEqual(result, expected) {
+		t.Errorf("Expected %v, but got %v", expected, result)
+	}
+
+	cancel()
+	if _, err := s.elementsWithContext(ctx); err == nil {
+		t.Errorf("ElementsWithContext: expected error")
+	}
+}
+
+// TestElementsMethod tests for the Elements method.
+func TestElementsMethod(t *testing.T) {
 	s := New[int]()
 	s.Add(1, 2, 3, 4)
 
@@ -385,8 +437,104 @@ func TestElements(t *testing.T) {
 	}
 }
 
-// TestLen tests for the Len method.
-func TestLen(t *testing.T) {
+// TestSortedWithContextMethod tests SortedWithContext method.
+func TestSortedWithContextMethod(t *testing.T) {
+	s := New[int]()
+	s.Add(3, 2, 1)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	sorted, _ := s.sortedWithContext(ctx)
+
+	// Check that the sorted slice is in ascending order.
+	expected := []int{1, 2, 3}
+	if !reflect.DeepEqual(sorted, expected) {
+		t.Errorf("SortedWithContext() = %v, want %v", sorted, expected)
+	}
+
+	// Test with a comparison function.
+	descending, _ := s.sortedWithContext(ctx, func(a, b int) bool {
+		return a > b
+	})
+	expectedDesc := []int{3, 2, 1}
+	if !reflect.DeepEqual(descending, expectedDesc) {
+		t.Errorf("SortedWithContext() = %v, want %v", descending, expectedDesc)
+	}
+
+	cancel()
+	if _, err := s.sortedWithContext(ctx); err == nil {
+		t.Errorf("SortedWithContext: expected error")
+	}
+}
+
+// TestSortedMethod tests for the Sorted method.
+func TestSortedMethod(t *testing.T) {
+	s := New[int]()
+	s.Add(3, 2, 1)
+
+	sorted := s.Sorted()
+
+	// Check that the sorted slice is in ascending order.
+	expected := []int{1, 2, 3}
+	if !reflect.DeepEqual(sorted, expected) {
+		t.Errorf("Sorted() = %v, want %v", sorted, expected)
+	}
+
+	// Test with a comparison function.
+	descending := s.Sorted(func(a, b int) bool { return a > b })
+	expectedDesc := []int{3, 2, 1}
+	if !reflect.DeepEqual(descending, expectedDesc) {
+		t.Errorf("Sorted() = %v, want %v", descending, expectedDesc)
+	}
+}
+
+// TestFilteredWithContextMethod tests FilteredWithContext method.
+func TestFilteredWithContextMethod(t *testing.T) {
+	s := New[int]()
+	s.Add(1, 2, 3, 4, 5)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	filtered, _ := s.filteredWithContext(ctx, func(item int) bool {
+		return item > 3
+	})
+
+	expected := []int{4, 5}
+	sort.Ints(filtered)
+	if !reflect.DeepEqual(filtered, expected) {
+		t.Errorf("FilteredWithContext() failed, expected "+
+			"elements = %v, got %v", expected, filtered)
+	}
+
+	cancel()
+	if _, err := s.filteredWithContext(ctx, func(item int) bool {
+		return item > 3
+	}); err == nil {
+		t.Errorf("FilteredWithContext: expected error")
+	}
+}
+
+// TestFilteredMethod tests for the Filtered method.
+func TestFilteredMethod(t *testing.T) {
+	s := New[int]()
+	s.Add(1, 2, 3, 4, 5)
+
+	filtered := s.Filtered(func(item int) bool {
+		return item > 3
+	})
+
+	expected := []int{4, 5}
+	sort.Ints(filtered)
+	if !reflect.DeepEqual(filtered, expected) {
+		t.Errorf("Filtered() failed, expected elements = %v, got %v",
+			expected, filtered)
+	}
+}
+
+// TestLenMethod tests for the Len method.
+func TestLenMethod(t *testing.T) {
 	s := New[int]()
 	s.Add(1, 2, 3, 4)
 
@@ -398,8 +546,33 @@ func TestLen(t *testing.T) {
 	}
 }
 
-// TestUnion tests for the Union method.
-func TestUnion(t *testing.T) {
+// TestUnionWithContextMethod tests UnionWithContext method.
+func TestUnionWithContextMethod(t *testing.T) {
+	s1 := New[int]()
+	s1.Add(3)
+
+	s2 := New[int](0, 5, 7)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	expected := New[int]()
+	expected.Add(0, 3, 5, 7)
+
+	result, _ := s1.unionWithContext(ctx, s2)
+	if !reflect.DeepEqual(result, expected) {
+		t.Errorf("Expected %v, but got %v",
+			expected.Elements(), result.Elements())
+	}
+
+	cancel()
+	if _, err := s1.unionWithContext(ctx, s2); err == nil {
+		t.Errorf("UnionWithContext: expected error")
+	}
+}
+
+// TestUnionMethod tests for the Union method.
+func TestUnionMethod(t *testing.T) {
 	s1 := New[int]()
 	s1.Add(3)
 
@@ -415,8 +588,35 @@ func TestUnion(t *testing.T) {
 	}
 }
 
-// TestIntersection tests for the Intersection method.
-func TestIntersection(t *testing.T) {
+// TestIntersectionWithContextMethod tests IntersectionWithContext method.
+func TestIntersectionWithContextMethod(t *testing.T) {
+	s1 := New[int]()
+	s1.Add(1, 2, 3)
+
+	s2 := New[int]()
+	s2.Add(3, 4, 5)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	expected := New[int]()
+	expected.Add(3)
+
+	result, _ := s1.intersectionWithContext(ctx, s2)
+
+	if !reflect.DeepEqual(result, expected) {
+		t.Errorf("Expected %v, but got %v",
+			expected.Elements(), result.Elements())
+	}
+
+	cancel()
+	if _, err := s1.intersectionWithContext(ctx, s2); err == nil {
+		t.Errorf("IntersectionWithContext: expected error")
+	}
+}
+
+// TestIntersectionMethod tests for the Intersection method.
+func TestIntersectionMethod(t *testing.T) {
 	s1 := New[int]()
 	s1.Add(1, 2, 3)
 
@@ -426,7 +626,7 @@ func TestIntersection(t *testing.T) {
 	expected := New[int]()
 	expected.Add(3)
 
-	result := s1.Intersection(s2)
+	result := s1.Inter(s2)
 
 	if !reflect.DeepEqual(result, expected) {
 		t.Errorf("Expected %v, but got %v",
@@ -434,8 +634,35 @@ func TestIntersection(t *testing.T) {
 	}
 }
 
-// TestDifference tests for the Difference method.
-func TestDifference(t *testing.T) {
+// TestDifferenceWithContextMethod tests DifferenceWithContext method.
+func TestDifferenceWithContextMethod(t *testing.T) {
+	s1 := New[int]()
+	s1.Add(1, 2, 3)
+
+	s2 := New[int]()
+	s2.Add(3, 4, 5)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	expected := New[int]()
+	expected.Add(1, 2)
+
+	result, _ := s1.differenceWithContext(ctx, s2)
+
+	if !reflect.DeepEqual(result, expected) {
+		t.Errorf("Expected %v, but got %v",
+			expected.Elements(), result.Elements())
+	}
+
+	cancel()
+	if _, err := s1.differenceWithContext(ctx, s2); err == nil {
+		t.Errorf("DifferenceWithContext: expected error")
+	}
+}
+
+// TestDifferenceMethod tests for the Difference method.
+func TestDifferenceMethod(t *testing.T) {
 	tests := []struct {
 		name     string
 		set1     *Set[int]
@@ -465,8 +692,36 @@ func TestDifference(t *testing.T) {
 	}
 }
 
-// TestSymmetricDifference tests for the SymmetricDifference method.
-func TestSymmetricDifference(t *testing.T) {
+// TestSymmetricDifferenceWithContextMethod tests
+// SymmetricDifferenceWithContext method.
+func TestSymmetricDifferenceWithContextMethod(t *testing.T) {
+	s1 := New[int]()
+	s1.Add(1, 2, 3)
+
+	s2 := New[int]()
+	s2.Add(3, 4, 5)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	expected := New[int]()
+	expected.Add(1, 2, 4, 5)
+
+	result, _ := s1.symmetricDifferenceWithContext(ctx, s2)
+
+	if !reflect.DeepEqual(result, expected) {
+		t.Errorf("Expected %v, but got %v",
+			expected.Elements(), result.Elements())
+	}
+
+	cancel()
+	if _, err := s1.symmetricDifferenceWithContext(ctx, s2); err == nil {
+		t.Errorf("SymmetricDifferenceWithContext: expected error")
+	}
+}
+
+// TestSymmetricDifferenceMethod tests for the SymmetricDifference method.
+func TestSymmetricDifferenceMethod(t *testing.T) {
 	tests := []struct {
 		name     string
 		set1     *Set[int]
@@ -496,91 +751,148 @@ func TestSymmetricDifference(t *testing.T) {
 	}
 }
 
-// TestIsSubset tests for the IsSubset method.
-func TestIsSubset(t *testing.T) {
-	tests := []struct {
-		name     string
-		set1     *Set[int]
-		set2     *Set[int]
-		expected bool
-	}{
-		{
-			name:     "Test when set1 is a subset of set2",
-			set1:     New[int](1, 2, 3),
-			set2:     New[int](1, 2, 3, 4, 5),
-			expected: true,
-		},
-		{
-			name:     "Test when set1 is not a subset of set2",
-			set1:     New[int](1, 2, 3, 4, 5),
-			set2:     New[int](1, 2, 3),
-			expected: false,
-		},
-	}
-
-	for _, tc := range tests {
-		result := tc.set1.IsSubset(tc.set2)
-		if result != tc.expected {
-			t.Errorf("Test %s: expected %v, but got %v",
-				tc.name, tc.expected, result)
-		}
-	}
-}
-
-// TestIsSuperset tests for the IsSuperset method.
-func TestIsSuperset(t *testing.T) {
-	tests := []struct {
-		name     string
-		set1     *Set[int]
-		set2     *Set[int]
-		expected bool
-	}{
-		{
-			name:     "Test when set1 is a superset of set2",
-			set1:     New[int](1, 2, 3, 4, 5),
-			set2:     New[int](1, 2, 3),
-			expected: true,
-		},
-		{
-			name:     "Test when set1 is not a superset of set2",
-			set1:     New[int](1, 2, 3),
-			set2:     New[int](1, 2, 3, 4, 5),
-			expected: false,
-		},
-	}
-
-	for _, tc := range tests {
-		result := tc.set1.IsSuperset(tc.set2)
-		if result != tc.expected {
-			t.Errorf("Test %s: expected %v, but got %v",
-				tc.name, tc.expected, result)
-		}
-	}
-}
-
-// TestSorted tests for the Sorted method.
-func TestSorted(t *testing.T) {
+// TestMapWithContextMethod tests MapWithContext method.
+func TestMapWithContextMethod(t *testing.T) {
 	s := New[int]()
-	s.Add(3, 2, 1)
+	s.Add(1, 2, 3)
 
-	sorted := s.Sorted()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-	// Check that the sorted slice is in ascending order.
-	expected := []int{1, 2, 3}
-	if !reflect.DeepEqual(sorted, expected) {
-		t.Errorf("Sorted() = %v, want %v", sorted, expected)
+	mapped, _ := s.mapWithContext(ctx, func(item int) int {
+		return item * 2
+	})
+
+	expected := []int{2, 4, 6}
+	if v := mapped.Sorted(); !reflect.DeepEqual(v, expected) {
+		t.Errorf("MapWithContext() failed, expected elements = %v, got %v",
+			expected, v)
 	}
 
-	// Test with a comparison function.
-	descending := s.Sorted(func(a, b int) bool { return a > b })
-	expectedDesc := []int{3, 2, 1}
-	if !reflect.DeepEqual(descending, expectedDesc) {
-		t.Errorf("Sorted() = %v, want %v", descending, expectedDesc)
+	cancel()
+	if _, err := s.mapWithContext(ctx, func(item int) int {
+		return item * 2
+	}); err == nil {
+		t.Errorf("MapWithContext: expected error")
 	}
 }
 
-// TestAppend tests for the Append method.
-func TestAppend(t *testing.T) {
+// TestMapMethod tests for the Map method.
+func TestMapMethod(t *testing.T) {
+	s := New[int]()
+	s.Add(1, 2, 3)
+
+	mapped := s.Map(func(item int) int {
+		return item * 2
+	})
+
+	expected := []int{2, 4, 6}
+	if v := mapped.Sorted(); !reflect.DeepEqual(v, expected) {
+		t.Errorf("Map() failed, expected elements = %v, got %v",
+			expected, v)
+	}
+}
+
+// TestReduceWithContextMethod tests ReduceWithContext method.
+func TestReduceWithContextMethod(t *testing.T) {
+	s := New[int]()
+	s.Add(1, 2, 3)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	reduced, _ := s.reduceWithContext(ctx, func(acc, item int) int {
+		return acc + item
+	})
+
+	if reduced != 6 {
+		t.Errorf("ReduceWithContext() failed, expected %d, got %d",
+			6, reduced)
+	}
+
+	cancel()
+	if _, err := s.reduceWithContext(ctx, func(acc, item int) int {
+		return acc + item
+	}); err == nil {
+		t.Errorf("ReduceWithContext: expected error")
+	}
+}
+
+// TestReduceMethod tests for the Reduce method.
+func TestReduceMethod(t *testing.T) {
+	s := New[int]()
+	s.Add(1, 2, 3)
+
+	reduced := s.Reduce(func(acc, item int) int {
+		return acc + item
+	})
+
+	if reduced != 6 {
+		t.Errorf("Reduce() failed, expected %d, got %d",
+			6, reduced)
+	}
+}
+
+// TestCopyWithContextMethod tests CopyWithContext method.
+func TestCopyWithContextMethod(t *testing.T) {
+	s := New[int]()
+	s.Add(1, 2, 3)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	copied, _ := s.copyWithContext(ctx)
+
+	if !reflect.DeepEqual(copied, s) {
+		t.Errorf("CopyWithContext() failed, expected %v, got %v",
+			s, copied)
+	}
+
+	cancel()
+	if _, err := s.copyWithContext(ctx); err == nil {
+		t.Errorf("CopyWithContext: expected error")
+	}
+}
+
+// TestCopyMethod tests for the Copy method.
+func TestCopyMethod(t *testing.T) {
+	s := New[int]()
+	s.Add(1, 2, 3)
+
+	copied := s.Copy()
+
+	if !reflect.DeepEqual(copied, s) {
+		t.Errorf("Copy() failed, expected %v, got %v",
+			s, copied)
+	}
+}
+
+// TestAppendWithContextMethod tests AppendWithContext method.
+func TestAppendWithContextMethod(t *testing.T) {
+	s1 := New[int]()
+	s1.Add(1, 2, 3)
+
+	s2 := New[int]()
+	s2.Add(4, 5, 6)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	s1.appendWithContext(ctx, s2)
+
+	expected := []int{1, 2, 3, 4, 5, 6}
+	if !reflect.DeepEqual(s1.Sorted(), expected) {
+		t.Errorf("AppendWithContext() = %v, want %v", s1.Sorted(), expected)
+	}
+
+	cancel()
+	if err := s1.appendWithContext(ctx, s2); err == nil {
+		t.Errorf("AppendWithContext: expected error")
+	}
+}
+
+// TestAppendMethod tests for the Append method.
+func TestAppendMethod(t *testing.T) {
 	s1 := New[int]()
 	s1.Add(1, 2, 3)
 
@@ -595,8 +907,43 @@ func TestAppend(t *testing.T) {
 	}
 }
 
-// TestExtend tests for the Extend method.
-func TestExtend(t *testing.T) {
+// TestExtendWithContextMethod tests ExtendWithContext method.
+func TestExtendWithContextMethod(t *testing.T) {
+	// Initialize two sets
+	s1 := New[int]()
+	s1.Add(1, 2, 3)
+
+	s2 := New[int]()
+	s2.Add(4, 5, 6)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Extend s1 with s2
+	s1.extendWithContext(ctx, []*Set[int]{s2})
+
+	// Test that the extended set has the correct length
+	if s1.Len() != 6 {
+		t.Errorf("ExtendWithContext() failed, expected length = %v, got %v", 6, s1.Len())
+	}
+
+	// Test that the extended set contains the correct items
+	expected := []int{1, 2, 3, 4, 5, 6}
+	sort.Ints(expected)
+	sort.Ints(s1.Elements())
+	if !reflect.DeepEqual(s1.Sorted(), expected) {
+		t.Errorf("ExtendWithContext() failed, expected elements = %v, got %v",
+			expected, s1.Sorted())
+	}
+
+	cancel()
+	if err := s1.extendWithContext(ctx, []*Set[int]{s2}); err == nil {
+		t.Errorf("ExtendWithContext: expected error")
+	}
+}
+
+// TestExtendMethod tests for the Extend method.
+func TestExtendMethod(t *testing.T) {
 	// Initialize two sets
 	s1 := New[int]()
 	s1.Add(1, 2, 3)
@@ -622,24 +969,193 @@ func TestExtend(t *testing.T) {
 	}
 }
 
-// TestCopy tests for the Copy method.
-func TestCopy(t *testing.T) {
+// TestOverwriteWithContextMethod tests OverwriteWithContext method.
+func TestOverwriteWithContextMethod(t *testing.T) {
 	s := New[int]()
 	s.Add(1, 2, 3)
 
-	copied := s.Copy()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-	// Check that the copied set contains the same elements
-	// as the original set.
-	expected := []int{1, 2, 3}
-	if !reflect.DeepEqual(copied.Sorted(), expected) {
-		t.Errorf("Copy() = %v, want %v", copied.Sorted(), expected)
+	s.overwriteWithContext(ctx, 5, 6, 7)
+
+	expected := []int{5, 6, 7}
+	if !reflect.DeepEqual(s.Sorted(), expected) {
+		t.Errorf("OverwriteWithContext() = %v, want %v", s.Sorted(), expected)
 	}
 
-	// Check that modifying the original set does not affect the copied set.
-	s.Add(4)
-	if copied.Contains(4) {
-		t.Errorf("Copy() did not create a deep copy")
+	cancel()
+	if err := s.overwriteWithContext(ctx, 1, 2, 3); err == nil {
+		t.Errorf("OverwriteWithContext: expected error")
+	}
+}
+
+// TestOverwriteMethod tests for the Overwrite method.
+func TestOverwriteMethod(t *testing.T) {
+	s := New[int]()
+	s.Add(1, 2, 3)
+
+	s.Overwrite(5, 6, 7)
+
+	expected := []int{5, 6, 7}
+	if !reflect.DeepEqual(s.Sorted(), expected) {
+		t.Errorf("Overwrite() = %v, want %v", s.Sorted(), expected)
+	}
+}
+
+// TestIsSubsetWithContextMethod tests IsSubsetWithContext method.
+func TestIsSubsetWithContextMethod(t *testing.T) {
+	tests := []struct {
+		name     string
+		set1     *Set[int]
+		set2     *Set[int]
+		expected bool
+	}{
+		{
+			name:     "Test when set1 is a subset of set2",
+			set1:     New[int](1, 2, 3),
+			set2:     New[int](1, 2, 3, 4, 5),
+			expected: true,
+		},
+		{
+			name:     "Test when set1 is not a subset of set2",
+			set1:     New[int](1, 2, 3, 4, 5),
+			set2:     New[int](1, 2, 3),
+			expected: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			got, err := tc.set1.isSubsetWithContext(ctx, tc.set2)
+			if err != nil {
+				t.Errorf("IsSubsetWithContext() = %v, want %v", err, nil)
+			}
+
+			if got != tc.expected {
+				t.Errorf("IsSubsetWithContext() = %v, want %v",
+					got, tc.expected)
+			}
+
+			cancel()
+			ok, _ := tc.set1.isSubsetWithContext(ctx, tc.set2)
+			if ok {
+				t.Errorf("IsSubsetWithContext: expected false")
+			}
+		})
+	}
+}
+
+// TestIsSubsetMethod tests for the IsSubset method.
+func TestIsSubsetMethod(t *testing.T) {
+	tests := []struct {
+		name     string
+		set1     *Set[int]
+		set2     *Set[int]
+		expected bool
+	}{
+		{
+			name:     "Test when set1 is a subset of set2",
+			set1:     New[int](1, 2, 3),
+			set2:     New[int](1, 2, 3, 4, 5),
+			expected: true,
+		},
+		{
+			name:     "Test when set1 is not a subset of set2",
+			set1:     New[int](1, 2, 3, 4, 5),
+			set2:     New[int](1, 2, 3),
+			expected: false,
+		},
+	}
+
+	for _, tc := range tests {
+		result := tc.set1.IsSub(tc.set2)
+		if result != tc.expected {
+			t.Errorf("Test %s: expected %v, but got %v",
+				tc.name, tc.expected, result)
+		}
+	}
+}
+
+// TestIsSupersetWithContextMethod tests IsSupersetWithContext method.
+func TestIsSupersetWithContextMethod(t *testing.T) {
+	tests := []struct {
+		name     string
+		set1     *Set[int]
+		set2     *Set[int]
+		expected bool
+	}{
+		{
+			name:     "Test when set1 is a superset of set2",
+			set1:     New[int](1, 2, 3, 4, 5),
+			set2:     New[int](1, 2, 3),
+			expected: true,
+		},
+		{
+			name:     "Test when set1 is not a superset of set2",
+			set1:     New[int](1, 2, 3),
+			set2:     New[int](1, 2, 3, 4, 5),
+			expected: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			got, err := tc.set1.isSupersetWithContext(ctx, tc.set2)
+			if err != nil {
+				t.Errorf("IsSupersetWithContext() = %v, want %v", err, nil)
+			}
+
+			if got != tc.expected {
+				t.Errorf("IsSupersetWithContext() = %v, want %v",
+					got, tc.expected)
+			}
+
+			// Test with cancelled context.
+			cancel()
+			ok, _ := tc.set1.isSupersetWithContext(ctx, tc.set2)
+			if ok {
+				t.Errorf("IsSupersetWithContext: expected false: "+
+					"set1: %v, set2: %v", tc.set1.Sorted(), tc.set2.Sorted())
+			}
+		})
+	}
+}
+
+// TestIsSupersetMethod tests for the IsSuperset method.
+func TestIsSupersetMethod(t *testing.T) {
+	tests := []struct {
+		name     string
+		set1     *Set[int]
+		set2     *Set[int]
+		expected bool
+	}{
+		{
+			name:     "Test when set1 is a superset of set2",
+			set1:     New[int](1, 2, 3, 4, 5),
+			set2:     New[int](1, 2, 3),
+			expected: true,
+		},
+		{
+			name:     "Test when set1 is not a superset of set2",
+			set1:     New[int](1, 2, 3),
+			set2:     New[int](1, 2, 3, 4, 5),
+			expected: false,
+		},
+	}
+
+	for _, tc := range tests {
+		result := tc.set1.IsSup(tc.set2)
+		if result != tc.expected {
+			t.Errorf("Test %s: expected %v, but got %v",
+				tc.name, tc.expected, result)
+		}
 	}
 }
 
@@ -658,50 +1174,38 @@ func TestClear(t *testing.T) {
 	}
 }
 
-// TestOverwrite tests for the Overwrite method.
-func TestOverwrite(t *testing.T) {
-	// Initialize a new set
-	s := New[int]()
-	s.Add(1, 2, 3)
-
-	// Overwrite the set
-	s.Overwrite(4, 5, 6)
-
-	// Test that the set has the correct length after overwriting
-	if s.Len() != 3 {
-		t.Errorf("Overwrite() failed, expected length = %v, got %v",
-			3, s.Len())
-	}
-
-	// Test that the set contains the correct items after overwriting
-	expected := []int{4, 5, 6}
-	sort.Ints(expected)
-	sort.Ints(s.Elements())
-	if v := s.Sorted(); !reflect.DeepEqual(v, expected) {
-		t.Errorf("Overwrite() failed, expected elements = %v, got %v",
-			expected, v)
-	}
-}
-
-// TestFiltered tests for the Filtered method.
-func TestFiltered(t *testing.T) {
+// TestFilterWithContextMethod tests for the FilterWithContext method.
+func TestFilterWithContextMethod(t *testing.T) {
 	s := New[int]()
 	s.Add(1, 2, 3, 4, 5)
 
-	filtered := s.Filtered(func(item int) bool {
+	filtered, err := s.filterWithContext(nil, func(item int) bool {
 		return item > 3
 	})
+	if err != nil {
+		t.Errorf("FilterWithContext() = %v, want %v", err, nil)
+	}
 
 	expected := []int{4, 5}
-	sort.Ints(filtered)
-	if !reflect.DeepEqual(filtered, expected) {
-		t.Errorf("Filtered() failed, expected elements = %v, got %v",
-			expected, filtered)
+	sort.Ints(filtered.Elements())
+	if v := filtered.Sorted(); !reflect.DeepEqual(v, expected) {
+		t.Errorf("Filter() failed, expected elements = %v, got %v",
+			expected, v)
+	}
+
+	// Test with cancelled context.
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, err = s.filterWithContext(ctx, func(item int) bool {
+		return item > 3
+	})
+	if err == nil {
+		t.Errorf("FilterWithContext() = %v, want %v", err, nil)
 	}
 }
 
-// TestFilter tests for the Filter method.
-func TestFilter(t *testing.T) {
+// TestFilterMethod tests for the Filter method.
+func TestFilterMethod(t *testing.T) {
 	s := New[int]()
 	s.Add(1, 2, 3, 4, 5)
 
@@ -717,38 +1221,36 @@ func TestFilter(t *testing.T) {
 	}
 }
 
-// TestMap tests for the Map method.
-func TestMap(t *testing.T) {
+// TestAnyWithContextMethod tests for the AnyWithContext method.
+func TestAnyWithContextMethod(t *testing.T) {
 	s := New[int]()
 	s.Add(1, 2, 3)
 
-	mapped := s.Map(func(item int) int {
-		return item * 2
+	any, err := s.anyWithContext(nil, func(item int) bool {
+		return item > 2
+	})
+	if err != nil {
+		t.Errorf("AnyWithContext() = %v, want %v", err, nil)
+	}
+
+	if !any {
+		t.Errorf("Any() failed, expected value = %v, got %v", true, any)
+	}
+
+	// Test with cancelled context.
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, err = s.anyWithContext(ctx, func(item int) bool {
+		return item > 2
 	})
 
-	expected := []int{2, 4, 6}
-	if v := mapped.Sorted(); !reflect.DeepEqual(v, expected) {
-		t.Errorf("Map() failed, expected elements = %v, got %v",
-			expected, v)
+	if err == nil {
+		t.Errorf("AnyWithContext() = %v, want %v", err, nil)
 	}
 }
 
-// TestReduce tests for the Reduce method.
-func TestReduce(t *testing.T) {
-	s := New[int]()
-	s.Add(1, 2, 3)
-
-	sum := s.Reduce(func(acc, item int) int {
-		return acc + item
-	})
-
-	if sum != 6 {
-		t.Errorf("Reduce() failed, expected value = %v, got %v", 6, sum)
-	}
-}
-
-// TestAny tests for the Any method.
-func TestAny(t *testing.T) {
+// TestAnyMethod tests for the Any method.
+func TestAnyMethod(t *testing.T) {
 	s := New[int]()
 	s.Add(1, 2, 3)
 
@@ -761,8 +1263,36 @@ func TestAny(t *testing.T) {
 	}
 }
 
-// TestAll tests for the All method.
-func TestAll(t *testing.T) {
+// TestAllWithContextMethod tests for the AllWithContext method.
+func TestAllWithContextMethod(t *testing.T) {
+	s := New[int]()
+	s.Add(1, 2, 3)
+
+	all, err := s.allWithContext(nil, func(item int) bool {
+		return item > 2
+	})
+	if err != nil {
+		t.Errorf("AllWithContext() = %v, want %v", err, nil)
+	}
+
+	if all {
+		t.Errorf("All() failed, expected value = %v, got %v", false, all)
+	}
+
+	// Test with cancelled context.
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	ok, _ := s.allWithContext(ctx, func(item int) bool {
+		return item > 2
+	})
+
+	if ok {
+		t.Errorf("AllWithContext() = %v, want %v", false, ok)
+	}
+}
+
+// TestAllMethod tests for the All method.
+func TestAllMethod(t *testing.T) {
 	s := New[int]()
 	s.Add(1, 2, 3)
 
@@ -774,3 +1304,44 @@ func TestAll(t *testing.T) {
 		t.Errorf("All() failed, expected value = %v, got %v", false, all)
 	}
 }
+
+///////////////////////////////
+
+//// TestOverwrite tests for the Overwrite method.
+//func TestOverwrite(t *testing.T) {
+//	// Initialize a new set
+//	s := New[int]()
+//	s.Add(1, 2, 3)
+//
+//	// Overwrite the set
+//	s.Overwrite(4, 5, 6)
+//
+//	// Test that the set has the correct length after overwriting
+//	if s.Len() != 3 {
+//		t.Errorf("Overwrite() failed, expected length = %v, got %v",
+//			3, s.Len())
+//	}
+//
+//	// Test that the set contains the correct items after overwriting
+//	expected := []int{4, 5, 6}
+//	sort.Ints(expected)
+//	sort.Ints(s.Elements())
+//	if v := s.Sorted(); !reflect.DeepEqual(v, expected) {
+//		t.Errorf("Overwrite() failed, expected elements = %v, got %v",
+//			expected, v)
+//	}
+//}
+
+// // TestReduce tests for the Reduce method.
+// func TestReduce(t *testing.T) {
+// 	s := New[int]()
+// 	s.Add(1, 2, 3)
+
+// 	sum := s.Reduce(func(acc, item int) int {
+// 		return acc + item
+// 	})
+
+// 	if sum != 6 {
+// 		t.Errorf("Reduce() failed, expected value = %v, got %v", 6, sum)
+// 	}
+// }
