@@ -1,5 +1,4 @@
-// Package set provides a parameterized Set data structure
-// for Go.
+// Package set provides a parameterized Set data structure for Go.
 //
 // A Set can contain any type of object, including
 // both simple and complex types. However, it is important
@@ -17,14 +16,13 @@ import (
 	"fmt"
 	"hash/fnv"
 	"reflect"
-	"runtime"
 	"sort"
 )
 
 // sortingElement is a helper struct that is used to sort the set.
 type sortingElement[T any] struct {
-	key   uint64
-	value T
+	key   uint64 // hash key
+	value T      // value
 }
 
 // Set is a set of any objects. The set can contain both simple and complex
@@ -61,7 +59,7 @@ func (s *Set[T]) toHash(ctx context.Context, obj interface{}) (uint64, error) {
 		return 0, err
 	}
 
-	// Return the hash sum
+	// Return the hash sum, and nil error.
 	return hash.Sum64(), nil
 }
 
@@ -283,13 +281,12 @@ func (s *Set[T]) sortedWithContext(
 	}
 
 	// Sort the temporary slice.
-	runtime.Gosched()
 	if len(fns) == 0 {
 		// If the user has not specified the sorting method(s),
 		// then it is better to sort simple values by converting
 		// them to a string. After all, the key for simple numbers,
 		//for example: 1, 2, 3, 4... will not always have a consistent state.
-		if s.simple == 1 {
+		if s.IsSimple() {
 			// Simple data is sorted by the value converted to a string.
 			sort.Slice(tmp, func(i, j int) bool {
 				a, b := fmt.Sprint(tmp[i].value), fmt.Sprint(tmp[j].value)
@@ -317,7 +314,6 @@ func (s *Set[T]) sortedWithContext(
 
 	// Create a new slice of T and copy the values over.
 	var result = make([]T, len(tmp))
-	runtime.Gosched()
 	for i, v := range tmp {
 		select {
 		case <-ctx.Done():
@@ -566,7 +562,6 @@ func (s *Set[T]) symmetricDifferenceWithContext(
 	}
 
 	// Elements of the other set.
-	runtime.Gosched()
 	for _, v := range set.heap {
 		select {
 		case <-ctx.Done():
@@ -946,8 +941,8 @@ func (s *Set[T]) Clear() {
 	s.heap = make(map[uint64]T)
 }
 
-// filterWithContext returns a new set with items that satisfy the provided
-// predicate.
+// filterWithContext returns a new set with items that satisfy
+// the provided predicate.
 func (s *Set[T]) filterWithContext(
 	ctx context.Context,
 	fn func(item T) bool,
