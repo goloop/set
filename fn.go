@@ -55,7 +55,7 @@ func New[T any](items ...T) *Set[T] {
 // (e.g., int, string, bool) or complex types (e.g., struct, slice).
 func NewWithContext[T any](ctx context.Context, items ...T) *Set[T] {
 	set := Set[T]{
-		heap:   make(map[string]T),
+		heap:   make(map[uint64]T),
 		simple: 0,
 		ctx:    ctx,
 	}

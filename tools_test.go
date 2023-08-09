@@ -2,6 +2,7 @@ package set
 
 import (
 	"context"
+	"hash/fnv"
 	"reflect"
 	"testing"
 )
@@ -11,44 +12,45 @@ func TestToStr(t *testing.T) {
 	tests := []struct {
 		name  string
 		input interface{}
-		want  string
+		want  uint64
 	}{
 		{
 			name:  "Pointer",
 			input: new(int),
-			want:  "0",
+			want:  12638135523509116079,
 		},
 		{
 			name:  "NilPointer",
 			input: (*int)(nil),
-			want:  "nil",
+			want:  2397808468787316396,
 		},
 		{
 			name:  "Interface",
 			input: (interface{})(new(int)),
-			want:  "0",
+			want:  12638135523509116079,
 		},
 		{
 			name:  "Func",
 			input: func() {},
-			want:  "func() Value",
+			want:  852608543138426317,
 		},
 		{
 			name:  "NilFunc",
 			input: (func())(nil),
-			want:  "func:nil",
+			want:  5584826337234219198,
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			got, err := toStr(nil, reflect.ValueOf(test.input))
+			hash := fnv.New64a()
+			err := toHash(nil, reflect.ValueOf(test.input), hash)
 			if err != nil {
 				t.Errorf("toStr(%s) no error was expected", test.name)
 			}
 
-			if got != test.want {
-				t.Errorf("toStr(%s) = %s, want %s", test.name, got, test.want)
+			if got := hash.Sum64(); got != test.want {
+				t.Errorf("toStr(%s) = %d, want %d", test.name, got, test.want)
 			}
 		})
 	}
@@ -59,37 +61,37 @@ func TestToStrWithContext(t *testing.T) {
 	tests := []struct {
 		name  string
 		input interface{}
-		want  string
+		want  uint64
 	}{
 		{
 			name:  "Map",
 			input: map[int]string{1: "one"},
-			want:  "0",
+			want:  14695981039346656037,
 		},
 		{
 			name:  "Pointer",
 			input: new(int),
-			want:  "0",
+			want:  14695981039346656037,
 		},
 		{
 			name:  "NilPointer",
 			input: (*int)(nil),
-			want:  "nil",
+			want:  14695981039346656037,
 		},
 		{
 			name:  "Interface",
 			input: (interface{})(new(int)),
-			want:  "0",
+			want:  14695981039346656037,
 		},
 		{
 			name:  "Func",
 			input: func() {},
-			want:  "func() Value",
+			want:  14695981039346656037,
 		},
 		{
 			name:  "NilFunc",
 			input: (func())(nil),
-			want:  "func:nil",
+			want:  14695981039346656037,
 		},
 	}
 
@@ -99,9 +101,14 @@ func TestToStrWithContext(t *testing.T) {
 			defer cancel()
 
 			cancel()
-			_, err := toStr(ctx, reflect.ValueOf(test.input))
+			hash := fnv.New64a()
+			err := toHash(ctx, reflect.ValueOf(test.input), hash)
 			if err == nil {
 				t.Errorf("toStr(%s) error was expected", test.name)
+			}
+
+			if got := hash.Sum64(); got != test.want {
+				t.Errorf("toStr(%s) = %d, want %d", test.name, got, test.want)
 			}
 		})
 	}

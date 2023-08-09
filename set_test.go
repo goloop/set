@@ -12,17 +12,17 @@ func TestToHashMethodSimple(t *testing.T) {
 	tests := []struct {
 		name     string
 		input    int
-		expected string
+		expected uint64
 	}{
 		{
 			name:     "integer 1",
 			input:    1,
-			expected: "1",
+			expected: 12638134423997487868,
 		},
 		{
 			name:     "integer 0",
 			input:    0,
-			expected: "0",
+			expected: 12638135523509116079,
 		},
 	}
 
@@ -45,17 +45,17 @@ func TestToHashMethodComplex(t *testing.T) {
 	tests := []struct {
 		name     string
 		input    complexType
-		expected string
+		expected uint64
 	}{
 		{
 			name:     "complex {1, \"one\"}",
 			input:    complexType{1, "one"},
-			expected: "{FieldA:1, FieldB:one}",
+			expected: 2272318830438166496,
 		},
 		{
 			name:     "complex {2, \"two\"}",
 			input:    complexType{2, "two"},
-			expected: "{FieldA:2, FieldB:two}",
+			expected: 2243055450779406681,
 		},
 	}
 
@@ -290,11 +290,11 @@ func TestAddMethod(t *testing.T) {
 	s.Add(1, 2, 3, 4)
 
 	expected := &Set[int]{
-		heap: map[string]int{
-			"1": 1,
-			"2": 2,
-			"3": 3,
-			"4": 4,
+		heap: map[uint64]int{
+			12638134423997487868: 1,
+			12638137722532372501: 2,
+			12638136623020744290: 3,
+			12638131125462603235: 4,
 		},
 		simple: 1,
 	}
@@ -334,9 +334,9 @@ func TestDeleteMethod(t *testing.T) {
 	s.Delete(1, 3)
 
 	expected := &Set[int]{
-		heap: map[string]int{
-			"2": 2,
-			"4": 4,
+		heap: map[uint64]int{
+			12638137722532372501: 2,
+			12638131125462603235: 4,
 		},
 		simple: 1,
 	}
@@ -445,7 +445,9 @@ func TestSortedWithContextMethod(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	sorted, _ := s.sortedWithContext(ctx)
+	sorted, _ := s.sortedWithContext(ctx, func(a, b int) bool {
+		return a < b
+	})
 
 	// Check that the sorted slice is in ascending order.
 	expected := []int{1, 2, 3}
@@ -473,7 +475,7 @@ func TestSortedMethod(t *testing.T) {
 	s := New[int]()
 	s.Add(3, 2, 1)
 
-	sorted := s.Sorted()
+	sorted := s.Sorted(func(a, b int) bool { return a < b })
 
 	// Check that the sorted slice is in ascending order.
 	expected := []int{1, 2, 3}
@@ -764,7 +766,9 @@ func TestMapWithContextMethod(t *testing.T) {
 	})
 
 	expected := []int{2, 4, 6}
-	if v := mapped.Sorted(); !reflect.DeepEqual(v, expected) {
+	if v := mapped.Sorted(func(a, b int) bool {
+		return a < b
+	}); !reflect.DeepEqual(v, expected) {
 		t.Errorf("MapWithContext() failed, expected elements = %v, got %v",
 			expected, v)
 	}
@@ -787,7 +791,9 @@ func TestMapMethod(t *testing.T) {
 	})
 
 	expected := []int{2, 4, 6}
-	if v := mapped.Sorted(); !reflect.DeepEqual(v, expected) {
+	if v := mapped.Sorted(func(a, b int) bool {
+		return a < b
+	}); !reflect.DeepEqual(v, expected) {
 		t.Errorf("Map() failed, expected elements = %v, got %v",
 			expected, v)
 	}
@@ -881,7 +887,9 @@ func TestAppendWithContextMethod(t *testing.T) {
 	s1.appendWithContext(ctx, s2)
 
 	expected := []int{1, 2, 3, 4, 5, 6}
-	if !reflect.DeepEqual(s1.Sorted(), expected) {
+	if !reflect.DeepEqual(s1.Sorted(func(a, b int) bool {
+		return a < b
+	}), expected) {
 		t.Errorf("AppendWithContext() = %v, want %v", s1.Sorted(), expected)
 	}
 
@@ -902,7 +910,9 @@ func TestAppendMethod(t *testing.T) {
 	s1.Append(s2)
 
 	expected := []int{1, 2, 3, 4, 5, 6}
-	if !reflect.DeepEqual(s1.Sorted(), expected) {
+	if !reflect.DeepEqual(s1.Sorted(func(a, b int) bool {
+		return a < b
+	}), expected) {
 		t.Errorf("Append() = %v, want %v", s1.Sorted(), expected)
 	}
 }
@@ -924,14 +934,17 @@ func TestExtendWithContextMethod(t *testing.T) {
 
 	// Test that the extended set has the correct length
 	if s1.Len() != 6 {
-		t.Errorf("ExtendWithContext() failed, expected length = %v, got %v", 6, s1.Len())
+		t.Errorf("ExtendWithContext() failed, expected "+
+			"length = %v, got %v", 6, s1.Len())
 	}
 
 	// Test that the extended set contains the correct items
 	expected := []int{1, 2, 3, 4, 5, 6}
 	sort.Ints(expected)
 	sort.Ints(s1.Elements())
-	if !reflect.DeepEqual(s1.Sorted(), expected) {
+	if !reflect.DeepEqual(s1.Sorted(func(a, b int) bool {
+		return a < b
+	}), expected) {
 		t.Errorf("ExtendWithContext() failed, expected elements = %v, got %v",
 			expected, s1.Sorted())
 	}
@@ -963,7 +976,9 @@ func TestExtendMethod(t *testing.T) {
 	expected := []int{1, 2, 3, 4, 5, 6}
 	sort.Ints(expected)
 	sort.Ints(s1.Elements())
-	if !reflect.DeepEqual(s1.Sorted(), expected) {
+	if !reflect.DeepEqual(s1.Sorted(func(a, b int) bool {
+		return a < b
+	}), expected) {
 		t.Errorf("Extend() failed, expected elements = %v, got %v",
 			expected, s1.Elements())
 	}
@@ -980,7 +995,9 @@ func TestOverwriteWithContextMethod(t *testing.T) {
 	s.overwriteWithContext(ctx, 5, 6, 7)
 
 	expected := []int{5, 6, 7}
-	if !reflect.DeepEqual(s.Sorted(), expected) {
+	if !reflect.DeepEqual(s.Sorted(func(a, b int) bool {
+		return a < b
+	}), expected) {
 		t.Errorf("OverwriteWithContext() = %v, want %v", s.Sorted(), expected)
 	}
 
@@ -998,7 +1015,9 @@ func TestOverwriteMethod(t *testing.T) {
 	s.Overwrite(5, 6, 7)
 
 	expected := []int{5, 6, 7}
-	if !reflect.DeepEqual(s.Sorted(), expected) {
+	if !reflect.DeepEqual(s.Sorted(func(a, b int) bool {
+		return a < b
+	}), expected) {
 		t.Errorf("Overwrite() = %v, want %v", s.Sorted(), expected)
 	}
 }

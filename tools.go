@@ -3,11 +3,11 @@ package set
 import (
 	"context"
 	"fmt"
+	"hash"
 	"reflect"
-	"strings"
 )
 
-// toStr is a helper function that takes a reflect.Value and creates a
+// toHash is a helper function that takes a reflect.Value and creates a
 // string representation of it. This function uses a switch statement to
 // handle different kinds of complex types like Struct, Array, Slice, Map,
 // Ptr, Interface, and Func. For each kind, it recursively builds a string
@@ -15,81 +15,60 @@ import (
 // these categories, it uses the built-in Sprintf function to create a string.
 // This function is mainly used by 'toHash' function to create unique keys for
 // complex objects in the Set.
-func toStr(ctx context.Context, v reflect.Value) (string, error) {
-	// If the context is nil, create a new one.
+func toHash(ctx context.Context, v reflect.Value, hash hash.Hash64) error {
+	// If the context is done, return an error.
 	if ctx == nil {
 		ctx = context.Background()
 	}
 
-	// If the context is done, return an empty string.
-	// Execute the context cancellation check block here,
-	// because this method can be executed recursively.
 	select {
 	case <-ctx.Done():
-		return "", ctx.Err()
+		return ctx.Err()
 	default:
 	}
 
-	// Create a string representation of the given reflect.Value.
-	// This procedure performs a recursive call toStr.
+	// Handle different kinds of complex types like Struct, Array, Slice, Map,
+	// Ptr, Interface, and Func.
 	switch v.Kind() {
 	case reflect.Struct:
-		var r []string
-		t := v.Type()
 		for i := 0; i < v.NumField(); i++ {
-			name := t.Field(i).Name
-			value, err := toStr(ctx, v.Field(i))
+			err := toHash(ctx, v.Field(i), hash)
 			if err != nil {
-				return "", err
+				return err
 			}
-
-			r = append(r, fmt.Sprintf("%s:%s", name, value))
 		}
-		return "{" + strings.Join(r, ", ") + "}", nil
 	case reflect.Array, reflect.Slice:
-		var elements []string
 		for i := 0; i < v.Len(); i++ {
-			value, err := toStr(ctx, v.Index(i))
+			err := toHash(ctx, v.Index(i), hash)
 			if err != nil {
-				return "", err
+				return err
 			}
-
-			elements = append(elements, value)
 		}
-		return "[" + strings.Join(elements, ", ") + "]", nil
 	case reflect.Map:
-		var r []string
 		for _, k := range v.MapKeys() {
-			v := v.MapIndex(k)
-
-			kValue, err := toStr(ctx, k)
+			err := toHash(ctx, k, hash)
 			if err != nil {
-				return "", err
+				return err
 			}
-
-			vValue, err := toStr(ctx, v)
+			err = toHash(ctx, v.MapIndex(k), hash)
 			if err != nil {
-				return "", err
+				return err
 			}
-
-			r = append(r, fmt.Sprintf("%s:%s", kValue, vValue))
 		}
-		return "{" + strings.Join(r, ", ") + "}", nil
 	case reflect.Ptr, reflect.Interface:
 		if v.IsNil() {
-			return "nil", nil
+			return toHash(ctx, reflect.ValueOf("nil"), hash)
 		}
-
-		return toStr(ctx, v.Elem())
+		return toHash(ctx, v.Elem(), hash)
 	case reflect.Func:
 		if v.IsNil() {
-			return "func:nil", nil
+			return toHash(ctx, reflect.ValueOf("func:nil"), hash)
 		}
-
-		return v.Type().String() + " Value", nil
+		return toHash(ctx, reflect.ValueOf(v.Type().String()+" Value"), hash)
 	default:
-		// pass
+		_, err := hash.Write([]byte(fmt.Sprintf("%v", v)))
+		return err
 	}
 
-	return fmt.Sprintf("%v", v), nil
+	return nil
 }

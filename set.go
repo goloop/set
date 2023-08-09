@@ -15,6 +15,7 @@ package set
 import (
 	"context"
 	"fmt"
+	"hash/fnv"
 	"reflect"
 	"runtime"
 	"sort"
@@ -22,7 +23,7 @@ import (
 
 // sortingElement is a helper struct that is used to sort the set.
 type sortingElement[T any] struct {
-	key   string
+	key   uint64
 	value T
 }
 
@@ -34,7 +35,7 @@ type sortingElement[T any] struct {
 // keys are hashed string representations of the objects, and the values are
 // the objects themselves.
 type Set[T any] struct {
-	heap   map[string]T // collection of objects
+	heap   map[uint64]T // collection of objects
 	simple int          // -1 - complex object, 0 - not set, 1 - simple object
 	ctx    context.Context
 }
@@ -45,26 +46,23 @@ type Set[T any] struct {
 // uses the 'valueToString' function to create a string representation of the
 // object. This function is mainly used as a helper function to create unique
 // keys for the 'heap' map in the Set.
-func (s *Set[T]) toHash(ctx context.Context, obj T) (string, error) {
+func (s *Set[T]) toHash(ctx context.Context, obj interface{}) (uint64, error) {
 	// If the context is nil, create a new one.
 	if ctx == nil {
 		ctx = context.Background()
 	}
 
-	// I think there is no point in hashing the result string or doing
-	// something like strip - it's just additional resources for string
-	// conversion.
-	if s.IsSimple() {
-		select {
-		case <-ctx.Done():
-			return "", ctx.Err()
-		default:
-		}
+	// Create an FNV hash function.
+	hash := fnv.New64a()
 
-		return fmt.Sprintf("%v", obj), nil
+	// Write the object to the hash.
+	err := toHash(ctx, reflect.ValueOf(obj), hash)
+	if err != nil {
+		return 0, err
 	}
 
-	return toStr(ctx, reflect.ValueOf(obj))
+	// Return the hash sum
+	return hash.Sum64(), nil
 }
 
 // IsSimple determines the complexity of the objects in the set, i.e.,
@@ -287,9 +285,28 @@ func (s *Set[T]) sortedWithContext(
 	// Sort the temporary slice.
 	runtime.Gosched()
 	if len(fns) == 0 {
-		sort.Slice(tmp, func(i, j int) bool {
-			return tmp[i].key < tmp[j].key
-		})
+		// If the user has not specified the sorting method(s),
+		// then it is better to sort simple values by converting
+		// them to a string. After all, the key for simple numbers,
+		//for example: 1, 2, 3, 4... will not always have a consistent state.
+		if s.simple == 1 {
+			// Simple data is sorted by the value converted to a string.
+			sort.Slice(tmp, func(i, j int) bool {
+				a, b := fmt.Sprint(tmp[i].value), fmt.Sprint(tmp[j].value)
+				return a < b
+			})
+		} else {
+			// Complex data is sorted by key.
+			// Note! The key does not guarantee any logical sorting,
+			// it is only a hash of the object, which in the order
+			// state may not meet the needs of the user.
+			//
+			// But we need to perform at least some sorting so that Sort
+			// for the same Set always returns the same sequence.
+			sort.Slice(tmp, func(i, j int) bool {
+				return tmp[i].key < tmp[j].key
+			})
+		}
 	} else {
 		for _, fn := range fns {
 			sort.Slice(tmp, func(i, j int) bool {
@@ -926,7 +943,7 @@ func (s *Set[T]) IsSup(set *Set[T]) bool {
 //
 //	s.Clear() // s is now empty
 func (s *Set[T]) Clear() {
-	s.heap = make(map[string]T)
+	s.heap = make(map[uint64]T)
 }
 
 // filterWithContext returns a new set with items that satisfy the provided

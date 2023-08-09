@@ -30,12 +30,12 @@ func TestNewSimple(t *testing.T) {
 			name:  "[]int{1, 2, 3, 4, 5}",
 			input: []int{1, 2, 3, 4, 5},
 			expected: &Set[int]{
-				heap: map[string]int{
-					"1": 1,
-					"2": 2,
-					"3": 3,
-					"4": 4,
-					"5": 5,
+				heap: map[uint64]int{
+					12638134423997487868: 1,
+					12638137722532372501: 2,
+					12638136623020744290: 3,
+					12638131125462603235: 4,
+					12638130025950975024: 5,
 				},
 				simple: 1,
 			},
@@ -44,7 +44,7 @@ func TestNewSimple(t *testing.T) {
 			name:  "[]int{}",
 			input: []int{},
 			expected: &Set[int]{
-				heap:   make(map[string]int),
+				heap:   make(map[uint64]int),
 				simple: 1,
 			},
 		},
@@ -52,7 +52,7 @@ func TestNewSimple(t *testing.T) {
 
 	for _, tc := range tests {
 		result := New(tc.input...)
-		if !reflect.DeepEqual(result, tc.expected) {
+		if !reflect.DeepEqual(result.Sorted(), tc.expected.Sorted()) {
 			t.Errorf("%s: expected %v, but got %v",
 				tc.name, tc.expected, result)
 		}
@@ -73,9 +73,9 @@ func TestNewComplex(t *testing.T) {
 				{2, "two"},
 			},
 			expected: &Set[complexType]{
-				heap: map[string]complexType{
-					"{FieldA:1, FieldB:one}": {1, "one"},
-					"{FieldA:2, FieldB:two}": {2, "two"},
+				heap: map[uint64]complexType{
+					2272318830438166496: {1, "one"},
+					2243055450779406681: {2, "two"},
 				},
 				simple: -1,
 			},
@@ -84,7 +84,7 @@ func TestNewComplex(t *testing.T) {
 			name:  "two",
 			input: []complexType{},
 			expected: &Set[complexType]{
-				heap:   make(map[string]complexType),
+				heap:   make(map[uint64]complexType),
 				simple: -1,
 			},
 		},
@@ -113,9 +113,9 @@ func TestNewWithContext(t *testing.T) {
 				{2, "two"},
 			},
 			expected: &Set[complexType]{
-				heap: map[string]complexType{
-					"{field1:1, field2:one}": {1, "one"},
-					"{field1:2, field2:two}": {2, "two"},
+				heap: map[uint64]complexType{
+					2272318830438166496: {1, "one"},
+					2243055450779406681: {2, "two"},
 				},
 				simple: -1,
 			},
@@ -124,7 +124,7 @@ func TestNewWithContext(t *testing.T) {
 			name:  "two",
 			input: []complexType{},
 			expected: &Set[complexType]{
-				heap:   make(map[string]complexType),
+				heap:   make(map[uint64]complexType),
 				simple: -1,
 			},
 		},
@@ -134,8 +134,8 @@ func TestNewWithContext(t *testing.T) {
 		ctx := context.Background()
 		result := NewWithContext(ctx, tc.input...)
 		if !reflect.DeepEqual(result.Sorted(), tc.expected.Sorted()) {
-			t.Errorf("Test %s: expected %v, but got %v",
-				tc.name, tc.expected.Sorted(), result.Sorted())
+			t.Errorf("Test %s (%v): expected %v, but got %v",
+				tc.name, result, tc.expected.Sorted(), result.Sorted())
 		}
 	}
 }
@@ -154,9 +154,9 @@ func TestAddWithContext(t *testing.T) {
 				{2, "two"},
 			},
 			expected: &Set[complexType]{
-				heap: map[string]complexType{
-					"{field1:1, field2:one}": {1, "one"},
-					"{field1:2, field2:two}": {2, "two"},
+				heap: map[uint64]complexType{
+					2272318830438166496: {1, "one"},
+					2243055450779406681: {2, "two"},
 				},
 				simple: -1,
 			},
@@ -165,7 +165,7 @@ func TestAddWithContext(t *testing.T) {
 			name:  "two",
 			input: []complexType{},
 			expected: &Set[complexType]{
-				heap:   make(map[string]complexType),
+				heap:   make(map[uint64]complexType),
 				simple: -1,
 			},
 		},
@@ -178,15 +178,15 @@ func TestAddWithContext(t *testing.T) {
 
 		AddWithContext(ctx, s, tc.input...)
 		if !reflect.DeepEqual(s.Sorted(), tc.expected.Sorted()) {
-			t.Errorf("Test %s: expected %v, but got %v",
-				tc.name, tc.expected.Sorted(), s.Sorted())
+			t.Errorf("Test %s (%v): expected %v, but got %v",
+				tc.name, s, tc.expected.Sorted(), s.Sorted())
 		}
 
 		cancel()
 		AddWithContext(ctx, s, complexType{3, "three"})
 		if s.Len() != tc.expected.Len() {
-			t.Errorf("Test %s: expected %v, but got %v",
-				tc.name, tc.expected.Sorted(), s.Sorted())
+			t.Errorf("Test %s (%v): expected %v, but got %v",
+				tc.name, s, tc.expected.Sorted(), s.Sorted())
 		}
 	}
 }
@@ -205,9 +205,9 @@ func TestAdd(t *testing.T) {
 				{2, "two"},
 			},
 			expected: &Set[complexType]{
-				heap: map[string]complexType{
-					"{field1:1, field2:one}": {1, "one"},
-					"{field1:2, field2:two}": {2, "two"},
+				heap: map[uint64]complexType{
+					2272318830438166496: {1, "one"},
+					2243055450779406681: {2, "two"},
 				},
 				simple: -1,
 			},
@@ -216,7 +216,7 @@ func TestAdd(t *testing.T) {
 			name:  "two",
 			input: []complexType{},
 			expected: &Set[complexType]{
-				heap:   make(map[string]complexType),
+				heap:   make(map[uint64]complexType),
 				simple: -1,
 			},
 		},
@@ -226,8 +226,8 @@ func TestAdd(t *testing.T) {
 		s := New(tc.input...)
 		Add(s, tc.input...)
 		if !reflect.DeepEqual(s.Sorted(), tc.expected.Sorted()) {
-			t.Errorf("Test %s: expected %v, but got %v",
-				tc.name, tc.expected.Sorted(), s.Sorted())
+			t.Errorf("Test %s (%v): expected %v, but got %v",
+				tc.name, s, tc.expected.Sorted(), s.Sorted())
 		}
 	}
 }
@@ -246,8 +246,8 @@ func TestDeleteWithContext(t *testing.T) {
 				{2, "two"},
 			},
 			expected: &Set[complexType]{
-				heap: map[string]complexType{
-					"{field1:2, field2:two}": {2, "two"},
+				heap: map[uint64]complexType{
+					1: {2, "two"},
 				},
 				simple: -1,
 			},
@@ -288,8 +288,8 @@ func TestDelete(t *testing.T) {
 				{2, "two"},
 			},
 			expected: &Set[complexType]{
-				heap: map[string]complexType{
-					"{field1:2, field2:two}": {2, "two"},
+				heap: map[uint64]complexType{
+					1: {2, "two"},
 				},
 				simple: -1,
 			},
@@ -479,17 +479,19 @@ func TestSortedWithContext(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		v, _ := SortedWithContext(ctx, s)
+		v, _ := SortedWithContext(ctx, s, func(a, b complexType) bool {
+			return a.FieldA < b.FieldA
+		})
 		if !reflect.DeepEqual(v, tc.expected) {
-			t.Errorf("Test %s: expected %v, but got %v",
-				tc.name, tc.expected, v)
+			t.Errorf("Test %s (%v): expected %v, but got %v",
+				tc.name, s, tc.expected, v)
 		}
 
 		cancel()
 		v, _ = SortedWithContext(ctx, s)
 		if len(v) != 0 {
-			t.Errorf("Test %s: expected %v, but got %v",
-				tc.name, []complexType{}, v)
+			t.Errorf("Test %s (%v): expected %v, but got %v",
+				tc.name, s, []complexType{}, v)
 		}
 	}
 }
@@ -516,7 +518,9 @@ func TestSorted(t *testing.T) {
 
 	for _, tc := range tests {
 		s := New(tc.input...)
-		v := Sorted(s)
+		v := Sorted(s, func(a, b complexType) bool {
+			return a.FieldA < b.FieldA
+		})
 		if !reflect.DeepEqual(v, tc.expected) {
 			t.Errorf("Test %s: expected %v, but got %v",
 				tc.name, tc.expected, v)
@@ -673,16 +677,16 @@ func TestUnionWithContext(t *testing.T) {
 		defer cancel()
 
 		v, _ := UnionWithContext(ctx, s, s2)
-		if !reflect.DeepEqual(v.Sorted(), tc.expected) {
+		if !reflect.DeepEqual(v.Sorted(), New(tc.expected...).Sorted()) {
 			t.Errorf("Test %s: expected %v, but got %v",
-				tc.name, tc.expected, v)
+				tc.name, New(tc.expected...).Sorted(), v.Sorted())
 		}
 
 		cancel()
 		v, _ = UnionWithContext(ctx, s, s2)
 		if Len(v) != 0 {
 			t.Errorf("Test %s: expected %v, but got %v",
-				tc.name, []complexType{}, v)
+				tc.name, []complexType{}, v.Sorted())
 		}
 	}
 }
@@ -717,9 +721,9 @@ func TestUnion(t *testing.T) {
 		s := New(tc.input...)
 		s2 := New(tc.input2...)
 		v := Union(s, s2)
-		if !reflect.DeepEqual(v.Sorted(), tc.expected) {
+		if !reflect.DeepEqual(v.Sorted(), New(tc.expected...).Sorted()) {
 			t.Errorf("Test %s: expected %v, but got %v",
-				tc.name, tc.expected, v)
+				tc.name, New(tc.expected...).Sorted(), v.Sorted())
 		}
 	}
 }
@@ -916,9 +920,9 @@ func TestSymmetricDifferenceWithContext(t *testing.T) {
 		defer cancel()
 
 		v, _ := SdiffWithContext(ctx, s, s2)
-		if !reflect.DeepEqual(v.Sorted(), tc.expected) {
+		if !reflect.DeepEqual(v.Sorted(), New(tc.expected...).Sorted()) {
 			t.Errorf("Test %s: expected %v, but got %v",
-				tc.name, tc.expected, v)
+				tc.name, New(tc.expected...).Sorted(), v.Sorted())
 		}
 
 		cancel()
@@ -959,9 +963,9 @@ func TestSymmetricDifference(t *testing.T) {
 		s := New(tc.input...)
 		s2 := New(tc.input2...)
 		v := Sdiff(s, s2)
-		if !reflect.DeepEqual(v.Sorted(), tc.expected) {
+		if !reflect.DeepEqual(v.Sorted(), New(tc.expected...).Sorted()) {
 			t.Errorf("Test %s: expected %v, but got %v",
-				tc.name, tc.expected, v)
+				tc.name, New(tc.expected...).Sorted(), v.Sorted())
 		}
 	}
 }
