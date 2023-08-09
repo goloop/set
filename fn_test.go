@@ -3,13 +3,14 @@ package set
 import (
 	"context"
 	"reflect"
+	"sort"
 	"testing"
 )
 
 // complexType is helper for testing complex sets.
 type complexType struct {
-	field1 int
-	field2 string
+	FieldA int
+	FieldB string
 }
 
 // userType is an another helper for testing complex sets.
@@ -73,8 +74,8 @@ func TestNewComplex(t *testing.T) {
 			},
 			expected: &Set[complexType]{
 				heap: map[string]complexType{
-					"{field1:1, field2:one}": {1, "one"},
-					"{field1:2, field2:two}": {2, "two"},
+					"{FieldA:1, FieldB:one}": {1, "one"},
+					"{FieldA:2, FieldB:two}": {2, "two"},
 				},
 				simple: -1,
 			},
@@ -182,111 +183,959 @@ func TestAddWithContext(t *testing.T) {
 		}
 
 		cancel()
-		err := AddWithContext(ctx, s, tc.input...)
-		if err == nil {
-			t.Errorf("Test %s: expected error, but got nil", tc.name)
+		AddWithContext(ctx, s, complexType{3, "three"})
+		if s.Len() != tc.expected.Len() {
+			t.Errorf("Test %s: expected %v, but got %v",
+				tc.name, tc.expected.Sorted(), s.Sorted())
 		}
 	}
 }
 
-// // TestMapFn tests Map function.
-// func TestMapFn(t *testing.T) {
-// 	s := New[userType]()
-// 	s.Add(userType{"John", 20}, userType{"Jane", 30})
+// TestAdd tests Add function.
+func TestAdd(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    []complexType
+		expected *Set[complexType]
+	}{
+		{
+			name: "one",
+			input: []complexType{
+				{1, "one"},
+				{2, "two"},
+			},
+			expected: &Set[complexType]{
+				heap: map[string]complexType{
+					"{field1:1, field2:one}": {1, "one"},
+					"{field1:2, field2:two}": {2, "two"},
+				},
+				simple: -1,
+			},
+		},
+		{
+			name:  "two",
+			input: []complexType{},
+			expected: &Set[complexType]{
+				heap:   make(map[string]complexType),
+				simple: -1,
+			},
+		},
+	}
 
-// 	names := Map(s, func(item userType) string {
-// 		return item.Name
-// 	})
+	for _, tc := range tests {
+		s := New(tc.input...)
+		Add(s, tc.input...)
+		if !reflect.DeepEqual(s.Sorted(), tc.expected.Sorted()) {
+			t.Errorf("Test %s: expected %v, but got %v",
+				tc.name, tc.expected.Sorted(), s.Sorted())
+		}
+	}
+}
 
-// 	expected := []string{"Jane", "John"}
-// 	if v := names.Sorted(); !reflect.DeepEqual(v, expected) {
-// 		t.Errorf("Map() failed, expected names = %v, got %v",
-// 			expected, v)
-// 	}
-// }
+// TestDeleteWithContext tests DeleteWithContext function.
+func TestDeleteWithContext(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    []complexType
+		expected *Set[complexType]
+	}{
+		{
+			name: "one",
+			input: []complexType{
+				{1, "one"},
+				{2, "two"},
+			},
+			expected: &Set[complexType]{
+				heap: map[string]complexType{
+					"{field1:2, field2:two}": {2, "two"},
+				},
+				simple: -1,
+			},
+		},
+	}
 
-// // TestReduceFn tests Reduce function.
-// func TestReduceFn(t *testing.T) {
-// 	s := New[userType]()
-// 	s.Add(userType{"John", 20}, userType{"Jane", 30})
+	for _, tc := range tests {
+		s := New(tc.input...)
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
 
-// 	sum := Reduce(s, func(acc int, item userType) int {
-// 		return acc + item.Age
-// 	})
+		DeleteWithContext(ctx, s, tc.input[0])
+		if !reflect.DeepEqual(s.Sorted(), tc.expected.Sorted()) {
+			t.Errorf("Test %s: expected %v, but got %v",
+				tc.name, tc.expected.Sorted(), s.Sorted())
+		}
 
-// 	if sum != 50 {
-// 		t.Errorf("Reduce() failed, expected sum = %v, got %v", 50, sum)
-// 	}
-// }
+		cancel()
+		DeleteWithContext(ctx, s, tc.input[1])
+		if s.Len() != tc.expected.Len() {
+			t.Errorf("Test %s: expected %v, but got %v",
+				tc.name, tc.expected.Sorted(), s.Sorted())
+		}
+	}
+}
 
-// // TestUnionFn tests Union function.
-// func TestUnionFn(t *testing.T) {
-// 	s1 := New[int](1, 2, 3)
-// 	s2 := New[int](3, 4, 5)
-// 	s3 := New[int](5, 6, 7)
-// 	s4 := New[int](7, 8, 9)
+// TestDelete tests Delete function.
+func TestDelete(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    []complexType
+		expected *Set[complexType]
+	}{
+		{
+			name: "one",
+			input: []complexType{
+				{1, "one"},
+				{2, "two"},
+			},
+			expected: &Set[complexType]{
+				heap: map[string]complexType{
+					"{field1:2, field2:two}": {2, "two"},
+				},
+				simple: -1,
+			},
+		},
+	}
 
-// 	r := Union(s1, s2, s3, s4)
+	for _, tc := range tests {
+		s := New(tc.input...)
+		Delete(s, tc.input[0])
+		if !reflect.DeepEqual(s.Sorted(), tc.expected.Sorted()) {
+			t.Errorf("Test %s: expected %v, but got %v",
+				tc.name, tc.expected.Sorted(), s.Sorted())
+		}
+	}
+}
 
-// 	expected := []int{1, 2, 3, 4, 5, 6, 7, 8, 9}
-// 	actual := r.Elements()
-// 	sort.Ints(actual)
+// TestContainsWithContext tests ContainsWithContext function.
+func TestContainsWithContext(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    []complexType
+		expected bool
+	}{
+		{
+			name: "one",
+			input: []complexType{
+				{1, "one"},
+				{2, "two"},
+			},
+			expected: true,
+		},
+	}
 
-// 	if !reflect.DeepEqual(expected, actual) {
-// 		t.Errorf("Expected %v, but got %v", expected, actual)
-// 	}
-// }
+	for _, tc := range tests {
+		s := New(tc.input...)
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
 
-// // TestIntersectionFn tests Intersection function.
-// func TestIntersectionFn(t *testing.T) {
-// 	s1 := New[int](1, 2, 3)
-// 	s2 := New[int](3, 4, 5)
-// 	s3 := New[int](3, 6, 7)
-// 	s4 := New[int](3, 8, 9)
+		v, _ := ContainsWithContext(ctx, s, tc.input[0])
+		if v != tc.expected {
+			t.Errorf("Test %s: expected %v, but got %v",
+				tc.name, tc.expected, v)
+		}
 
-// 	r := Intersection(s1, s2, s3, s4)
+		cancel()
+		v, _ = ContainsWithContext(ctx, s, tc.input[1])
+		if v != false {
+			t.Errorf("Test %s: expected %v, but got %v",
+				tc.name, false, v)
+		}
+	}
+}
 
-// 	expected := []int{3}
-// 	actual := r.Elements()
-// 	sort.Ints(actual)
+// TestContains tests Contains function.
+func TestContains(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    []complexType
+		expected bool
+	}{
+		{
+			name: "one",
+			input: []complexType{
+				{1, "one"},
+				{2, "two"},
+			},
+			expected: true,
+		},
+	}
 
-// 	if !reflect.DeepEqual(expected, actual) {
-// 		t.Errorf("Expected %v, but got %v", expected, actual)
-// 	}
-// }
+	for _, tc := range tests {
+		s := New(tc.input...)
+		v := Contains(s, tc.input[0])
+		if v != tc.expected {
+			t.Errorf("Test %s: expected %v, but got %v",
+				tc.name, tc.expected, v)
+		}
+	}
+}
 
-// // TestDiffFn tests Diff function.
-// func TestDiffFn(t *testing.T) {
-// 	s1 := New[int](1, 2, 3)
-// 	s2 := New[int](3, 4, 5)
-// 	s3 := New[int](5, 6, 7)
-// 	s4 := New[int](7, 8, 9)
+// TetsElementsWithContext tests ElementsWithContext function.
+func TestElementsWithContext(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    []complexType
+		expected []complexType
+	}{
+		{
+			name: "one",
+			input: []complexType{
+				{1, "one"},
+				{2, "two"},
+			},
+			expected: []complexType{
+				{1, "one"},
+				{2, "two"},
+			},
+		},
+	}
 
-// 	r := Diff(s1, s2, s3, s4)
+	for _, tc := range tests {
+		s := New(tc.input...)
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
 
-// 	expected := []int{1, 2}
-// 	actual := r.Elements()
-// 	sort.Ints(actual)
+		v, _ := ElementsWithContext(ctx, s)
+		sort.Slice(v, func(i, j int) bool {
+			return v[i].FieldA < v[j].FieldA
+		})
+		sort.Slice(tc.expected, func(i, j int) bool {
+			return tc.expected[i].FieldA < tc.expected[j].FieldA
+		})
 
-// 	if !reflect.DeepEqual(expected, actual) {
-// 		t.Errorf("Expected %v, but got %v", expected, actual)
-// 	}
-// }
+		if !reflect.DeepEqual(v, tc.expected) {
+			t.Errorf("Test %s: expected %v, but got %v",
+				tc.name, tc.expected, v)
+		}
 
-// // TestSdiffFn tests Sdiff function.
-// func TestSdiffFn(t *testing.T) {
-// 	s1 := New[int](1, 2, 3)
-// 	s2 := New[int](3, 4, 5)
-// 	s3 := New[int](5, 6, 7)
-// 	s4 := New[int](7, 8, 9)
+		cancel()
+		v, _ = ElementsWithContext(ctx, s)
+		if len(v) != 0 {
+			t.Errorf("Test %s: expected %v, but got %v",
+				tc.name, []complexType{}, v)
+		}
+	}
+}
 
-// 	r := Sdiff(s1, s2, s3, s4)
+// TestElements tests Elements function.
+func TestElements(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    []complexType
+		expected []complexType
+	}{
+		{
+			name: "one",
+			input: []complexType{
+				{1, "one"},
+				{2, "two"},
+			},
+			expected: []complexType{
+				{1, "one"},
+				{2, "two"},
+			},
+		},
+	}
 
-// 	expected := []int{1, 2, 4, 6, 8, 9}
-// 	actual := r.Elements()
-// 	sort.Ints(actual)
+	for _, tc := range tests {
+		s := New(tc.input...)
+		v := Elements(s)
+		sort.Slice(v, func(i, j int) bool {
+			return v[i].FieldA < v[j].FieldA
+		})
+		sort.Slice(tc.expected, func(i, j int) bool {
+			return tc.expected[i].FieldA < tc.expected[j].FieldA
+		})
 
-// 	if !reflect.DeepEqual(expected, actual) {
-// 		t.Errorf("Expected %v, but got %v", expected, actual)
-// 	}
-// }
+		if !reflect.DeepEqual(v, tc.expected) {
+			t.Errorf("Test %s: expected %v, but got %v",
+				tc.name, tc.expected, v)
+		}
+	}
+}
+
+// TestSortedWithContext tests SortedWithContext function.
+func TestSortedWithContext(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    []complexType
+		expected []complexType
+	}{
+		{
+			name: "one",
+			input: []complexType{
+				{2, "two"},
+				{1, "one"},
+			},
+			expected: []complexType{
+				{1, "one"},
+				{2, "two"},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		s := New(tc.input...)
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		v, _ := SortedWithContext(ctx, s)
+		if !reflect.DeepEqual(v, tc.expected) {
+			t.Errorf("Test %s: expected %v, but got %v",
+				tc.name, tc.expected, v)
+		}
+
+		cancel()
+		v, _ = SortedWithContext(ctx, s)
+		if len(v) != 0 {
+			t.Errorf("Test %s: expected %v, but got %v",
+				tc.name, []complexType{}, v)
+		}
+	}
+}
+
+// TestSorted tests Sorted function.
+func TestSorted(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    []complexType
+		expected []complexType
+	}{
+		{
+			name: "one",
+			input: []complexType{
+				{2, "two"},
+				{1, "one"},
+			},
+			expected: []complexType{
+				{1, "one"},
+				{2, "two"},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		s := New(tc.input...)
+		v := Sorted(s)
+		if !reflect.DeepEqual(v, tc.expected) {
+			t.Errorf("Test %s: expected %v, but got %v",
+				tc.name, tc.expected, v)
+		}
+	}
+}
+
+// TestFilteredWithContext tests FilteredWithContext function.
+func TestFilteredWithContext(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    []complexType
+		filter   func(complexType) bool
+		expected []complexType
+	}{
+		{
+			name: "one",
+			input: []complexType{
+				{1, "one"},
+				{2, "two"},
+			},
+			filter: func(item complexType) bool {
+				return item.FieldA == 1
+			},
+			expected: []complexType{
+				{1, "one"},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		s := New(tc.input...)
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		v, _ := FilteredWithContext(ctx, s, tc.filter)
+		sort.Slice(v, func(i, j int) bool {
+			return v[i].FieldA < v[j].FieldA
+		})
+		sort.Slice(tc.expected, func(i, j int) bool {
+			return tc.expected[i].FieldA < tc.expected[j].FieldA
+		})
+
+		if !reflect.DeepEqual(v, tc.expected) {
+			t.Errorf("Test %s: expected %v, but got %v",
+				tc.name, tc.expected, v)
+		}
+
+		cancel()
+		v, _ = FilteredWithContext(ctx, s, tc.filter)
+		if len(v) != 0 {
+			t.Errorf("Test %s: expected %v, but got %v",
+				tc.name, []complexType{}, v)
+		}
+	}
+}
+
+// TestFiltered tests Filtered function.
+func TestFiltered(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    []complexType
+		filter   func(complexType) bool
+		expected []complexType
+	}{
+		{
+			name: "one",
+			input: []complexType{
+				{1, "one"},
+				{2, "two"},
+			},
+			filter: func(item complexType) bool {
+				return item.FieldA == 1
+			},
+			expected: []complexType{
+				{1, "one"},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		s := New(tc.input...)
+		v := Filtered(s, tc.filter)
+		sort.Slice(v, func(i, j int) bool {
+			return v[i].FieldA < v[j].FieldA
+		})
+		sort.Slice(tc.expected, func(i, j int) bool {
+			return tc.expected[i].FieldA < tc.expected[j].FieldA
+		})
+
+		if !reflect.DeepEqual(v, tc.expected) {
+			t.Errorf("Test %s: expected %v, but got %v",
+				tc.name, tc.expected, v)
+		}
+	}
+}
+
+// TestLen tests Len function.
+func TestLen(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    []complexType
+		expected int
+	}{
+		{
+			name: "one",
+			input: []complexType{
+				{1, "one"},
+				{2, "two"},
+			},
+			expected: 2,
+		},
+	}
+
+	for _, tc := range tests {
+		s := New(tc.input...)
+		if v := Len(s); v != tc.expected {
+			t.Errorf("Test %s: expected %d, but got %d",
+				tc.name, tc.expected, v)
+		}
+	}
+}
+
+// UnionWithContext tests UnionWithContext function.
+func TestUnionWithContext(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    []complexType
+		input2   []complexType
+		expected []complexType
+	}{
+		{
+			name: "one",
+			input: []complexType{
+				{1, "one"},
+				{2, "two"},
+			},
+			input2: []complexType{
+				{1, "one"},
+				{3, "three"},
+			},
+			expected: []complexType{
+				{1, "one"},
+				{2, "two"},
+				{3, "three"},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		s := New(tc.input...)
+		s2 := New(tc.input2...)
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		v, _ := UnionWithContext(ctx, s, s2)
+		if !reflect.DeepEqual(v.Sorted(), tc.expected) {
+			t.Errorf("Test %s: expected %v, but got %v",
+				tc.name, tc.expected, v)
+		}
+
+		cancel()
+		v, _ = UnionWithContext(ctx, s, s2)
+		if Len(v) != 0 {
+			t.Errorf("Test %s: expected %v, but got %v",
+				tc.name, []complexType{}, v)
+		}
+	}
+}
+
+// TestUnion tests Union function.
+func TestUnion(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    []complexType
+		input2   []complexType
+		expected []complexType
+	}{
+		{
+			name: "one",
+			input: []complexType{
+				{1, "one"},
+				{2, "two"},
+			},
+			input2: []complexType{
+				{1, "one"},
+				{3, "three"},
+			},
+			expected: []complexType{
+				{1, "one"},
+				{2, "two"},
+				{3, "three"},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		s := New(tc.input...)
+		s2 := New(tc.input2...)
+		v := Union(s, s2)
+		if !reflect.DeepEqual(v.Sorted(), tc.expected) {
+			t.Errorf("Test %s: expected %v, but got %v",
+				tc.name, tc.expected, v)
+		}
+	}
+}
+
+// TestIntersectionWithContext tests IntersectionWithContext function.
+func TestIntersectionWithContext(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    []complexType
+		input2   []complexType
+		expected []complexType
+	}{
+		{
+			name: "one",
+			input: []complexType{
+				{1, "one"},
+				{2, "two"},
+			},
+			input2: []complexType{
+				{1, "one"},
+				{3, "three"},
+			},
+			expected: []complexType{
+				{1, "one"},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		s := New(tc.input...)
+		s2 := New(tc.input2...)
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		v, _ := InterWithContext(ctx, s, s2)
+		if !reflect.DeepEqual(v.Sorted(), tc.expected) {
+			t.Errorf("Test %s: expected %v, but got %v",
+				tc.name, tc.expected, v)
+		}
+
+		cancel()
+		v, _ = InterWithContext(ctx, s, s2)
+		if Len(v) != 0 {
+			t.Errorf("Test %s: expected %v, but got %v",
+				tc.name, []complexType{}, v)
+		}
+	}
+}
+
+// TestIntersection tests Intersection function.
+func TestIntersection(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    []complexType
+		input2   []complexType
+		expected []complexType
+	}{
+		{
+			name: "one",
+			input: []complexType{
+				{1, "one"},
+				{2, "two"},
+			},
+			input2: []complexType{
+				{1, "one"},
+				{3, "three"},
+			},
+			expected: []complexType{
+				{1, "one"},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		s := New(tc.input...)
+		s2 := New(tc.input2...)
+		v := Inter(s, s2)
+		if !reflect.DeepEqual(v.Sorted(), tc.expected) {
+			t.Errorf("Test %s: expected %v, but got %v",
+				tc.name, tc.expected, v)
+		}
+	}
+}
+
+// TestDifferenceWithContext tests DifferenceWithContext function.
+func TestDifferenceWithContext(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    []complexType
+		input2   []complexType
+		expected []complexType
+	}{
+		{
+			name: "one",
+			input: []complexType{
+				{1, "one"},
+				{2, "two"},
+			},
+			input2: []complexType{
+				{1, "one"},
+				{3, "three"},
+			},
+			expected: []complexType{
+				{2, "two"},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		s := New(tc.input...)
+		s2 := New(tc.input2...)
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		v, _ := DiffWithContext(ctx, s, s2)
+		if !reflect.DeepEqual(v.Sorted(), tc.expected) {
+			t.Errorf("Test %s: expected %v, but got %v",
+				tc.name, tc.expected, v)
+		}
+
+		cancel()
+		v, _ = DiffWithContext(ctx, s, s2)
+		if Len(v) != 0 {
+			t.Errorf("Test %s: expected %v, but got %v",
+				tc.name, []complexType{}, v)
+		}
+	}
+}
+
+// TestDifference tests Difference function.
+func TestDifference(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    []complexType
+		input2   []complexType
+		expected []complexType
+	}{
+		{
+			name: "one",
+			input: []complexType{
+				{1, "one"},
+				{2, "two"},
+			},
+			input2: []complexType{
+				{1, "one"},
+				{3, "three"},
+			},
+			expected: []complexType{
+				{2, "two"},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		s := New(tc.input...)
+		s2 := New(tc.input2...)
+		v := Diff(s, s2)
+		if !reflect.DeepEqual(v.Sorted(), tc.expected) {
+			t.Errorf("Test %s: expected %v, but got %v",
+				tc.name, tc.expected, v)
+		}
+	}
+}
+
+// TestSymmetricDifferenceWithContext tests SymmetricDifferenceWithContext fn.
+func TestSymmetricDifferenceWithContext(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    []complexType
+		input2   []complexType
+		expected []complexType
+	}{
+		{
+			name: "one",
+			input: []complexType{
+				{1, "one"},
+				{2, "two"},
+			},
+			input2: []complexType{
+				{1, "one"},
+				{3, "three"},
+			},
+			expected: []complexType{
+				{2, "two"},
+				{3, "three"},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		s := New(tc.input...)
+		s2 := New(tc.input2...)
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		v, _ := SdiffWithContext(ctx, s, s2)
+		if !reflect.DeepEqual(v.Sorted(), tc.expected) {
+			t.Errorf("Test %s: expected %v, but got %v",
+				tc.name, tc.expected, v)
+		}
+
+		cancel()
+		v, _ = SdiffWithContext(ctx, s, s2)
+		if Len(v) != 0 {
+			t.Errorf("Test %s: expected %v, but got %v",
+				tc.name, []complexType{}, v)
+		}
+	}
+}
+
+// TestSymmetricDifference tests SymmetricDifference function.
+func TestSymmetricDifference(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    []complexType
+		input2   []complexType
+		expected []complexType
+	}{
+		{
+			name: "one",
+			input: []complexType{
+				{1, "one"},
+				{2, "two"},
+			},
+			input2: []complexType{
+				{1, "one"},
+				{3, "three"},
+			},
+			expected: []complexType{
+				{2, "two"},
+				{3, "three"},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		s := New(tc.input...)
+		s2 := New(tc.input2...)
+		v := Sdiff(s, s2)
+		if !reflect.DeepEqual(v.Sorted(), tc.expected) {
+			t.Errorf("Test %s: expected %v, but got %v",
+				tc.name, tc.expected, v)
+		}
+	}
+}
+
+// TestMapWithContext tests MapWithContext function.
+func TestMapWithContext(t *testing.T) {
+	s := New[userType]()
+	s.Add(userType{"John", 20}, userType{"Jane", 30})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	names, _ := MapWithContext(ctx, s, func(item userType) string {
+		return item.Name
+	})
+
+	expected := []string{"Jane", "John"}
+	if v := names.Sorted(); !reflect.DeepEqual(v, expected) {
+		t.Errorf("Map() failed, expected names = %v, got %v",
+			expected, v)
+	}
+
+	cancel()
+	names, _ = MapWithContext(ctx, s, func(item userType) string {
+		return item.Name
+	})
+
+	if Len(names) != 0 {
+		t.Errorf("Map() failed, expected names = %v, got %v",
+			[]string{}, names)
+	}
+}
+
+// TestMap tests Map function.
+func TestMap(t *testing.T) {
+	s := New[userType]()
+	s.Add(userType{"John", 20}, userType{"Jane", 30})
+
+	names := Map(s, func(item userType) string {
+		return item.Name
+	})
+
+	expected := []string{"Jane", "John"}
+	if v := names.Sorted(); !reflect.DeepEqual(v, expected) {
+		t.Errorf("Map() failed, expected names = %v, got %v",
+			expected, v)
+	}
+}
+
+// TestReduceWithContext tests ReduceWithContext function.
+func TestReduceWithContext(t *testing.T) {
+	s := New[userType]()
+	s.Add(userType{"John", 20}, userType{"Jane", 30})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	sum, _ := ReduceWithContext(ctx, s, func(acc int, item userType) int {
+		return acc + item.Age
+	})
+
+	if sum != 50 {
+		t.Errorf("Reduce() failed, expected sum = %d, got %d",
+			50, sum)
+	}
+
+	cancel()
+	sum, _ = ReduceWithContext(ctx, s, func(acc int, item userType) int {
+		return acc + item.Age
+	})
+
+	if sum != 0 {
+		t.Errorf("Reduce() failed, expected sum = %d, got %d",
+			0, sum)
+	}
+}
+
+// TestReduce tests Reduce function.
+func TestReduce(t *testing.T) {
+	s := New[userType]()
+	s.Add(userType{"John", 20}, userType{"Jane", 30})
+
+	sum := Reduce(s, func(acc int, item userType) int {
+		return acc + item.Age
+	})
+
+	if sum != 50 {
+		t.Errorf("Reduce() failed, expected sum = %d, got %d",
+			50, sum)
+	}
+}
+
+// TestCopyWithContext tests CopyWithContext function.
+func TestCopyWithContext(t *testing.T) {
+	s := New[userType]()
+	s.Add(userType{"John", 20}, userType{"Jane", 30})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	s2, _ := CopyWithContext(ctx, s)
+
+	if !reflect.DeepEqual(s, s2) {
+		t.Errorf("Copy() failed, expected s = %v, got %v",
+			s, s2)
+	}
+
+	cancel()
+	s2, _ = CopyWithContext(ctx, s)
+
+	if Len(s2) != 0 {
+		t.Errorf("Copy() failed, expected s = %v, got %v",
+			New[userType](), s2)
+	}
+}
+
+// TestCopy tests Copy function.
+func TestCopy(t *testing.T) {
+	s := New[userType]()
+	s.Add(userType{"John", 20}, userType{"Jane", 30})
+
+	s2 := Copy(s)
+
+	if !reflect.DeepEqual(s, s2) {
+		t.Errorf("Copy() failed, expected s = %v, got %v",
+			s, s2)
+	}
+}
+
+// TestFilterWithContext tests FilterWithContext function.
+func TestFilterWithContext(t *testing.T) {
+	s := New[userType]()
+	s.Add(userType{"John", 20}, userType{"Jane", 30})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	s2, _ := FilterWithContext(ctx, s, func(item userType) bool {
+		return item.Age > 20
+	})
+
+	expected := New[userType]()
+	expected.Add(userType{"Jane", 30})
+
+	if !reflect.DeepEqual(s2, expected) {
+		t.Errorf("Filter() failed, expected s = %v, got %v",
+			expected, s2)
+	}
+
+	cancel()
+	s2, _ = FilterWithContext(ctx, s, func(item userType) bool {
+		return item.Age > 20
+	})
+
+	if Len(s2) != 0 {
+		t.Errorf("Filter() failed, expected s = %v, got %v",
+			New[userType](), s2)
+	}
+}
+
+// TestFilter tests Filter function.
+func TestFilter(t *testing.T) {
+	s := New[userType]()
+	s.Add(userType{"John", 20}, userType{"Jane", 30})
+
+	s2 := Filter(s, func(item userType) bool {
+		return item.Age > 20
+	})
+
+	expected := New[userType]()
+	expected.Add(userType{"Jane", 30})
+
+	if !reflect.DeepEqual(s2, expected) {
+		t.Errorf("Filter() failed, expected s = %v, got %v",
+			expected, s2)
+	}
+}

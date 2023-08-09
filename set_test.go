@@ -50,12 +50,12 @@ func TestToHashMethodComplex(t *testing.T) {
 		{
 			name:     "complex {1, \"one\"}",
 			input:    complexType{1, "one"},
-			expected: "{field1:1, field2:one}",
+			expected: "{FieldA:1, FieldB:one}",
 		},
 		{
 			name:     "complex {2, \"two\"}",
 			input:    complexType{2, "two"},
-			expected: "{field1:2, field2:two}",
+			expected: "{FieldA:2, FieldB:two}",
 		},
 	}
 
@@ -1304,44 +1304,3 @@ func TestAllMethod(t *testing.T) {
 		t.Errorf("All() failed, expected value = %v, got %v", false, all)
 	}
 }
-
-///////////////////////////////
-
-//// TestOverwrite tests for the Overwrite method.
-//func TestOverwrite(t *testing.T) {
-//	// Initialize a new set
-//	s := New[int]()
-//	s.Add(1, 2, 3)
-//
-//	// Overwrite the set
-//	s.Overwrite(4, 5, 6)
-//
-//	// Test that the set has the correct length after overwriting
-//	if s.Len() != 3 {
-//		t.Errorf("Overwrite() failed, expected length = %v, got %v",
-//			3, s.Len())
-//	}
-//
-//	// Test that the set contains the correct items after overwriting
-//	expected := []int{4, 5, 6}
-//	sort.Ints(expected)
-//	sort.Ints(s.Elements())
-//	if v := s.Sorted(); !reflect.DeepEqual(v, expected) {
-//		t.Errorf("Overwrite() failed, expected elements = %v, got %v",
-//			expected, v)
-//	}
-//}
-
-// // TestReduce tests for the Reduce method.
-// func TestReduce(t *testing.T) {
-// 	s := New[int]()
-// 	s.Add(1, 2, 3)
-
-// 	sum := s.Reduce(func(acc, item int) int {
-// 		return acc + item
-// 	})
-
-// 	if sum != 6 {
-// 		t.Errorf("Reduce() failed, expected value = %v, got %v", 6, sum)
-// 	}
-// }

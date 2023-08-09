@@ -588,3 +588,18 @@ func FilterWithContext[T any](
 
 	return result, nil
 }
+
+// Filter returns a new set with all the items from the set that pass the
+// test implemented by the provided function.
+//
+// Example usage:
+//
+//	s := set.New[int](1, 2, 3, 4, 5)
+//	r := set.Filter(s, func(item int) bool {
+//	    return item%2 == 0
+//	})
+//	fmt.Println(r.Sorted()) // 2, 4
+func Filter[T any](s *Set[T], fn func(item T) bool) *Set[T] {
+	r, _ := FilterWithContext[T](nil, s, fn)
+	return r
+}
