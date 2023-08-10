@@ -47,6 +47,7 @@ func TestParallelTasks(t *testing.T) {
 	if got, want := ParallelTasks(5), 5; got != want {
 		t.Errorf("ParallelTasks(5) = %d; want %d", got, want)
 	}
+
 	if got := ParallelTasks(); got != 5 {
 		t.Errorf("ParallelTasks() after setting = %d; want 5", got)
 	}

@@ -987,10 +987,10 @@ func (s *Set[T]) anyWithContext(
 	ctx context.Context,
 	fn func(item T) bool,
 ) (bool, error) {
+	var wg sync.WaitGroup
+
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-
-	var wg sync.WaitGroup
 
 	// If the context is nil, create a new default context.
 	if ctx == nil {
@@ -1094,10 +1094,10 @@ func (s *Set[T]) allWithContext(
 	ctx context.Context,
 	fn func(item T) bool,
 ) (bool, error) {
+	var wg sync.WaitGroup
+
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-
-	var wg sync.WaitGroup
 
 	// If the context is nil, create a new default context.
 	if ctx == nil {
