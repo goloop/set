@@ -19,6 +19,39 @@ type userType struct {
 	Age  int
 }
 
+// TestParallelTasks tests ParallelTasks function.
+func TestParallelTasks(t *testing.T) {
+	// Testing the default value.
+	if got := ParallelTasks(); got != parallelTasks {
+		t.Errorf("ParallelTasks() = %d; want %d", got, parallelTasks)
+	}
+
+	// Testing addition of values.
+	if got := ParallelTasks(3, 4); got != 7 {
+		t.Errorf("ParallelTasks(3, 4) = %d; want 7", got)
+	}
+
+	// Testing that the value is set to maxParallelTasks
+	// if it exceeds the maximum.
+	if got := ParallelTasks(maxParallelTasks + 1); got != maxParallelTasks {
+		t.Errorf("ParallelTasks(%d) = %d; want %d", maxParallelTasks+1,
+			got, maxParallelTasks)
+	}
+
+	// Testing that the value is set to 1 if it is less than or equal to zero.
+	if got := ParallelTasks(-3); got != 1 {
+		t.Errorf("ParallelTasks(-3) = %d; want 1", got)
+	}
+
+	// Testing that the new value is applied and can be retrieved.
+	if got, want := ParallelTasks(5), 5; got != want {
+		t.Errorf("ParallelTasks(5) = %d; want %d", got, want)
+	}
+	if got := ParallelTasks(); got != 5 {
+		t.Errorf("ParallelTasks() after setting = %d; want 5", got)
+	}
+}
+
 // TestNewSimple tests New function for simple type.
 func TestNewSimple(t *testing.T) {
 	tests := []struct {

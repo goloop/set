@@ -17,6 +17,7 @@ import (
 	"hash/fnv"
 	"reflect"
 	"sort"
+	"sync"
 )
 
 // sortingElement is a helper struct that is used to sort the set.
@@ -36,6 +37,7 @@ type Set[T any] struct {
 	heap   map[uint64]T // collection of objects
 	simple int          // -1 - complex object, 0 - not set, 1 - simple object
 	ctx    context.Context
+	mu     sync.RWMutex
 }
 
 // toHash converts the given object to a string. If the set contains simple
@@ -577,8 +579,8 @@ func (s *Set[T]) symmetricDifferenceWithContext(
 	return result, nil
 }
 
-// SymmetricDifference returns a new set with items in either
-// the first or second set but not both. This is useful when you want to find
+// SymmetricDifference returns a new set with items in either the first or
+// second set but not both. This is useful when you want to find
 // items that are unique to each set.
 //
 // Example usage:
@@ -985,24 +987,89 @@ func (s *Set[T]) anyWithContext(
 	ctx context.Context,
 	fn func(item T) bool,
 ) (bool, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	var wg sync.WaitGroup
+
 	// If the context is nil, create a new default context.
 	if ctx == nil {
 		ctx = context.Background()
 	}
 
-	for _, v := range s.heap {
-		select {
-		case <-ctx.Done():
-			return false, ctx.Err()
-		default:
+	// Will use context to stop the rest of the goroutines
+	// if the value has already been found.
+	//
+	// Create a separate context for stopping goroutines.
+	// Canceled outside and canceled when value is found are different states.
+	etx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	p := parallelTasks
+	found := &logicFoundValue{value: false}
+
+	// If the length of the slice is less than or equal to
+	// the minLoadPerGoroutine, then we do not need
+	// to use goroutines.
+	l := s.Len()
+	if l == 0 {
+		return false, nil
+	} else if l/p < minLoadPerGoroutine {
+		for _, b := range s.heap {
+			select {
+			case <-ctx.Done():
+				return false, ctx.Err()
+			default:
+			}
+
+			if fn(b) {
+				return true, nil
+			}
 		}
 
-		if fn(v) {
-			return true, nil
-		}
+		return false, nil
 	}
 
-	return false, nil
+	// The size of the set is too large, we need to split
+	// it into parts and execute it in goroutines.
+	chunkSize := l / p
+	v := s.Elements()
+	for i := 0; i < p; i++ {
+		wg.Add(1)
+
+		start := i * chunkSize
+		end := start + chunkSize
+		if i == p-1 {
+			end = len(v)
+		}
+
+		go func(start, end int) {
+			defer wg.Done()
+
+			for _, b := range v[start:end] {
+				// Check if the context has been cancelled.
+				select {
+				case <-ctx.Done():
+					// Canceled outside.
+					found.SetValue(false, ctx.Err())
+					return
+				case <-etx.Done():
+					// The result is already found in another goroutine.
+					return
+				default:
+				}
+
+				if fn(b) {
+					found.SetValue(true, nil)
+					cancel() // stop all other goroutines
+					return
+				}
+			}
+		}(start, end)
+	}
+
+	wg.Wait()
+	return found.GetValue()
 }
 
 // Any returns true if any of the items in the set satisfy
@@ -1027,24 +1094,89 @@ func (s *Set[T]) allWithContext(
 	ctx context.Context,
 	fn func(item T) bool,
 ) (bool, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	var wg sync.WaitGroup
+
 	// If the context is nil, create a new default context.
 	if ctx == nil {
 		ctx = context.Background()
 	}
 
-	for _, v := range s.heap {
-		select {
-		case <-ctx.Done():
-			return false, ctx.Err()
-		default:
+	// Will use context to stop the rest of the goroutines
+	// if the value has already been found.
+	//
+	// Create a separate context for stopping goroutines.
+	// Canceled outside and canceled when value is found are different states.
+	etx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	p := parallelTasks
+	found := &logicFoundValue{value: true}
+
+	// If the length of the slice is less than or equal to
+	// the minLoadPerGoroutine, then we do not need
+	// to use goroutines.
+	l := s.Len()
+	if l == 0 {
+		return false, nil
+	} else if l/p < minLoadPerGoroutine {
+		for _, b := range s.heap {
+			select {
+			case <-ctx.Done():
+				return false, ctx.Err()
+			default:
+			}
+
+			if !fn(b) {
+				return false, nil
+			}
 		}
 
-		if !fn(v) {
-			return false, nil
-		}
+		return true, nil
 	}
 
-	return true, nil
+	// The size of the set is too large, we need to split
+	// it into parts and execute it in goroutines.
+	chunkSize := l / p
+	v := s.Elements()
+	for i := 0; i < p; i++ {
+		wg.Add(1)
+
+		start := i * chunkSize
+		end := start + chunkSize
+		if i == p-1 {
+			end = len(v)
+		}
+
+		go func(start, end int) {
+			defer wg.Done()
+
+			for _, b := range v[start:end] {
+				// Check if the context has been cancelled.
+				select {
+				case <-ctx.Done():
+					// Canceled outside.
+					found.SetValue(false, ctx.Err())
+					return
+				case <-etx.Done():
+					// The result is already found in another goroutine.
+					return
+				default:
+				}
+
+				if !fn(b) {
+					found.SetValue(false, nil)
+					cancel() // stop all other goroutines
+					return
+				}
+			}
+		}(start, end)
+	}
+
+	wg.Wait()
+	return found.GetValue()
 }
 
 // All returns true if all of the items in the set satisfy

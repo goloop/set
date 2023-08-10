@@ -1271,14 +1271,58 @@ func TestAnyWithContextMethod(t *testing.T) {
 // TestAnyMethod tests for the Any method.
 func TestAnyMethod(t *testing.T) {
 	s := New[int]()
-	s.Add(1, 2, 3)
-
+	// Empty.
 	any := s.Any(func(item int) bool {
+		return item > 2
+	})
+
+	if any {
+		t.Errorf("Any() failed, expected value = %v, got %v", false, any)
+	}
+
+	// Not empty.
+	s.Add(1, 2, 3)
+	any = s.Any(func(item int) bool {
 		return item > 2
 	})
 
 	if !any {
 		t.Errorf("Any() failed, expected value = %v, got %v", true, any)
+	}
+}
+
+// TestAnyParallelMethod tests for the Any method.
+func TestAnyParallelMethod(t *testing.T) {
+	// Small processing block size.
+	minLoadPerGoroutine = 5
+
+	// Initialize of a large set.
+	s := New[int]()
+	for i := 0; i < 1000; i++ {
+		if i == 800 {
+			s.Add(-1)
+		} else {
+			s.Add(i)
+		}
+	}
+
+	// The call will be in goroutines.
+	any := s.Any(func(item int) bool {
+		return item == -1
+	})
+	if !any {
+		t.Errorf("Any() failed, expected value = %v, got %v", true, any)
+	}
+
+	// Cancel goroutine outside.
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, err := s.anyWithContext(ctx, func(item int) bool {
+		return item >= 0
+	})
+
+	if err == nil {
+		t.Errorf("anyWithContext() = %v, want %v", err, nil)
 	}
 }
 
@@ -1291,7 +1335,7 @@ func TestAllWithContextMethod(t *testing.T) {
 		return item > 2
 	})
 	if err != nil {
-		t.Errorf("AllWithContext() = %v, want %v", err, nil)
+		t.Errorf("allWithContext() = %v, want %v", err, nil)
 	}
 
 	if all {
@@ -1313,13 +1357,57 @@ func TestAllWithContextMethod(t *testing.T) {
 // TestAllMethod tests for the All method.
 func TestAllMethod(t *testing.T) {
 	s := New[int]()
-	s.Add(1, 2, 3)
 
+	// Empty.
 	all := s.All(func(item int) bool {
+		return item > 2
+	})
+	if all {
+		t.Errorf("All() failed, expected value = %v, got %v", false, all)
+	}
+
+	// Not empty.
+	s.Add(1, 2, 3)
+	all = s.All(func(item int) bool {
 		return item > 2
 	})
 
 	if all {
 		t.Errorf("All() failed, expected value = %v, got %v", false, all)
+	}
+}
+
+// TestAllParallelMethod tests for the All method.
+func TestAllParallelMethod(t *testing.T) {
+	// Small processing block size.
+	minLoadPerGoroutine = 5
+
+	// Initialize of a large set.
+	s := New[int]()
+	for i := 0; i < 1000; i++ {
+		if i == 800 {
+			s.Add(-1)
+		} else {
+			s.Add(i)
+		}
+	}
+
+	// The call will be in goroutines.
+	all := s.All(func(item int) bool {
+		return item >= 0
+	})
+	if all {
+		t.Errorf("All() failed, expected value = %v, got %v", false, all)
+	}
+
+	// Cancel goroutine outside.
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, err := s.allWithContext(ctx, func(item int) bool {
+		return item >= 0
+	})
+
+	if err == nil {
+		t.Errorf("allWithContext() = %v, want %v", err, nil)
 	}
 }

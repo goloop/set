@@ -4,7 +4,88 @@ import (
 	"context"
 	"reflect"
 	"runtime"
+	"sync"
 )
+
+var (
+	// The parallelTasks the number of parallel tasks.
+	parallelTasks = 1
+
+	// The maxParallelTasks is the maximum number of parallel tasks.
+	maxParallelTasks = runtime.NumCPU() * 3
+
+	// The minLoadPerGoroutine is the minimum slice size for processing
+	// in an individual goroutine. Essentially, it delineates the threshold
+	// at which it becomes worthwhile to divide the slice processing amongst
+	// multiple goroutines. If each goroutine isn't handling a sufficiently
+	// large subslice, the overhead of goroutine creation and management
+	// may outweigh the benefits of concurrent processing. This variable
+	// specifies the minimum number of iterations per goroutine to ensure
+	// an efficient division of labor.
+	minLoadPerGoroutine = 1024
+)
+
+// The init initializes the randomGenerator variable.
+func init() {
+	parallelTasks = runtime.NumCPU() * 2
+}
+
+// The logicFoundValue is a helper struct that holds a boolean value
+// and a Mutex to protect it from concurrent access.
+//
+// They are used in the In function to detect the desired result
+// in a separate goroutine.
+type logicFoundValue struct {
+	m     sync.Mutex
+	value bool
+	err   error
+}
+
+// SetValue sets a new value for the Found. It locks the Mutex before
+// changing the value and unlocks it after the change is complete.
+func (f *logicFoundValue) SetValue(value bool, err error) {
+	f.m.Lock()
+	defer f.m.Unlock()
+	f.value = value
+	f.err = err
+}
+
+// GetValue retrieves the current value of the Found. It locks the Mutex
+// before reading the value and unlocks it after the read is complete.
+func (f *logicFoundValue) GetValue() (bool, error) {
+	f.m.Lock()
+	defer f.m.Unlock()
+	return f.value, f.err
+}
+
+// ParallelTasks returns the number of parallel tasks.
+//
+// If the function is called without parameters, it returns the
+// current value of parallelTasks.
+//
+// A function can receive one or more values for parallelTasks,
+// these values are added together to form the final result for
+// parallelTasks. If the new value for parallelTasks is less than
+// or equal to zero - it will be set to 1, if it is greater than
+// maxParallelTasks - it will be set to maxParallelTasks.
+func ParallelTasks(v ...int) int {
+	if len(v) > 0 {
+		n := 0
+		for _, value := range v {
+			n += value
+		}
+
+		if n <= 0 {
+			parallelTasks = 1
+		} else if n > maxParallelTasks {
+			parallelTasks = maxParallelTasks
+		} else {
+			parallelTasks = n
+		}
+	}
+
+	return parallelTasks
+}
 
 // New is a constructor function that creates a new Set[T] instance.
 // It accepts an arbitrary number of items of a generic type 'T' which
