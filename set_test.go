@@ -7,6 +7,11 @@ import (
 	"testing"
 )
 
+type jsonTestStruct struct {
+	ID   int    `json:"id"`
+	Name string `json:"name"`
+}
+
 // TestToHashMethodSimple tests toHash method for simple types.
 func TestToHashMethodSimple(t *testing.T) {
 	tests := []struct {
@@ -1409,5 +1414,97 @@ func TestAllParallelMethod(t *testing.T) {
 
 	if err == nil {
 		t.Errorf("allWithContext() = %v, want %v", err, nil)
+	}
+}
+
+// TestSetJSON tests Marshal/Unmarshal.
+func TestSetJSON(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    *Set[int]
+		wantErr  bool
+		validate func(*testing.T, *Set[int])
+	}{
+		{
+			name:    "simple integers",
+			input:   New(1, 2, 3, 4, 5),
+			wantErr: false,
+			validate: func(t *testing.T, s *Set[int]) {
+				if s.Len() != 5 {
+					t.Errorf("expected length 5, got %d", s.Len())
+				}
+				for i := 1; i <= 5; i++ {
+					if !s.Contains(i) {
+						t.Errorf("missing element %d", i)
+					}
+				}
+			},
+		},
+		{
+			name:    "empty set",
+			input:   New[int](),
+			wantErr: false,
+			validate: func(t *testing.T, s *Set[int]) {
+				if s.Len() != 0 {
+					t.Errorf("expected empty set, got length %d", s.Len())
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Marshal
+			data, err := tt.input.MarshalJSON()
+			if (err != nil) != tt.wantErr {
+				t.Errorf("MarshalJSON() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+
+			// Unmarshal into new set
+			newSet := New[int]()
+			err = newSet.UnmarshalJSON(data)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("UnmarshalJSON() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+
+			// Validate
+			tt.validate(t, newSet)
+		})
+	}
+}
+
+// TestSetJSONWithStruct tests Marshal/Unmarshal with struct.
+func TestSetJSONWithStruct(t *testing.T) {
+	original := New[jsonTestStruct]()
+	original.Add(
+		jsonTestStruct{ID: 1, Name: "One"},
+		jsonTestStruct{ID: 2, Name: "Two"},
+		jsonTestStruct{ID: 3, Name: "Three"},
+	)
+
+	// Marshal
+	data, err := original.MarshalJSON()
+	if err != nil {
+		t.Fatalf("MarshalJSON() error = %v", err)
+	}
+
+	// Unmarshal
+	newSet := New[jsonTestStruct]()
+	err = newSet.UnmarshalJSON(data)
+	if err != nil {
+		t.Fatalf("UnmarshalJSON() error = %v", err)
+	}
+
+	// Validate
+	if newSet.Len() != original.Len() {
+		t.Errorf("expected length %d, got %d", original.Len(), newSet.Len())
+	}
+
+	for _, item := range original.Elements() {
+		if !newSet.Contains(item) {
+			t.Errorf("missing element %v", item)
+		}
 	}
 }

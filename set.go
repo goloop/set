@@ -1,18 +1,8 @@
-// Package set provides a parameterized Set data structure for Go.
-//
-// A Set can contain any type of object, including
-// both simple and complex types. However, it is important
-// to note that a Set can only contain either simple or complex
-// types, not both.
-//
-// This package provides basic set operations, such as Add, Delete,
-// Contains, and Len. In addition, it also provides complex set
-// operations, such as Union, Intersection, Difference, SymmetricDifference,
-// IsSubset, and IsSuperset.
 package set
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"hash/fnv"
 	"reflect"
@@ -1193,4 +1183,28 @@ func (s *Set[T]) allWithContext(
 func (s *Set[T]) All(fn func(item T) bool) bool {
 	r, _ := s.allWithContext(s.ctx, fn)
 	return r
+}
+
+// MarshalJSON implements json.Marshaler interface.
+func (s *Set[T]) MarshalJSON() ([]byte, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	elements := s.Elements()
+	return json.Marshal(elements)
+}
+
+// UnmarshalJSON implements json.Unmarshaler interface.
+func (s *Set[T]) UnmarshalJSON(data []byte) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	var elements []T
+	if err := json.Unmarshal(data, &elements); err != nil {
+		return fmt.Errorf("failed to unmarshal set elements: %w", err)
+	}
+
+	s.Clear()
+	s.Add(elements...)
+	return nil
 }

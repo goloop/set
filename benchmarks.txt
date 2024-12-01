@@ -1,0 +1,65 @@
+goos: linux
+goarch: arm64
+pkg: github.com/goloop/set
+BenchmarkSetOperations/New/size=100-6         	   51453	     23131 ns/op	   11224 B/op	     519 allocs/op
+BenchmarkSetOperations/Add/size=100-6         	   51961	     23182 ns/op	   11223 B/op	     519 allocs/op
+BenchmarkSetOperations/Contains/size=100-6    	 6057374	       193.2 ns/op	      56 B/op	       5 allocs/op
+BenchmarkSetOperations/Delete/size=100-6      	   35979	     33550 ns/op	   14025 B/op	     769 allocs/op
+BenchmarkSetOperations/Union/size=100-6       	   24103	     51442 ns/op	   26626 B/op	    1042 allocs/op
+BenchmarkSetOperations/Intersection/size=100-6         	   58429	     20281 ns/op	    5713 B/op	     502 allocs/op
+BenchmarkSetOperations/Difference/size=100-6           	   27746	     43988 ns/op	   16827 B/op	    1019 allocs/op
+BenchmarkSetOperations/SymmetricDifference/size=100-6  	   13896	     91822 ns/op	   33750 B/op	    2026 allocs/op
+BenchmarkSetOperations/Copy/size=100-6                 	   47229	     26505 ns/op	   11222 B/op	     519 allocs/op
+BenchmarkSetOperations/Clear/size=100-6                	   49930	     23988 ns/op	   11271 B/op	     520 allocs/op
+BenchmarkSetOperations/MarshalJSON/size=100-6          	  300627	      3897 ns/op	    2769 B/op	      10 allocs/op
+BenchmarkSetOperations/UnmarshalJSON/size=100-6        	   33862	     34550 ns/op	   13489 B/op	     531 allocs/op
+BenchmarkSetOperations/Filter/size=100-6               	  100300	     11937 ns/op	    4918 B/op	     221 allocs/op
+BenchmarkSetOperations/Any/size=100-6                  	  222940	      5117 ns/op	    2936 B/op	      24 allocs/op
+BenchmarkSetOperations/All/size=100-6                  	  131936	      8827 ns/op	    2936 B/op	      24 allocs/op
+BenchmarkSetOperations/New/size=1000-6                 	    4897	    244551 ns/op	  142853 B/op	    5066 allocs/op
+BenchmarkSetOperations/Add/size=1000-6                 	    4617	    244066 ns/op	  142848 B/op	    5066 allocs/op
+BenchmarkSetOperations/Contains/size=1000-6            	 6159349	       193.9 ns/op	      56 B/op	       4 allocs/op
+BenchmarkSetOperations/Delete/size=1000-6              	    3516	    338307 ns/op	  170852 B/op	    7565 allocs/op
+BenchmarkSetOperations/Union/size=1000-6               	    2258	    517633 ns/op	  336011 B/op	   10121 allocs/op
+BenchmarkSetOperations/Intersection/size=1000-6        	    5908	    193603 ns/op	   56065 B/op	    4996 allocs/op
+BenchmarkSetOperations/Difference/size=1000-6          	    2704	    451219 ns/op	  198750 B/op	   10055 allocs/op
+BenchmarkSetOperations/SymmetricDifference/size=1000-6 	    1316	    896325 ns/op	  397467 B/op	   20081 allocs/op
+BenchmarkSetOperations/Copy/size=1000-6                	    4522	    271286 ns/op	  142788 B/op	    5061 allocs/op
+BenchmarkSetOperations/Clear/size=1000-6               	    4450	    246482 ns/op	  142883 B/op	    5067 allocs/op
+BenchmarkSetOperations/MarshalJSON/size=1000-6         	   33158	     38261 ns/op	   32260 B/op	      14 allocs/op
+BenchmarkSetOperations/UnmarshalJSON/size=1000-6       	    3223	    346450 ns/op	  168254 B/op	    5077 allocs/op
+BenchmarkSetOperations/Filter/size=1000-6              	    7743	    144922 ns/op	   72241 B/op	    2614 allocs/op
+BenchmarkSetOperations/Any/size=1000-6                 	   51541	     23801 ns/op	   26104 B/op	      28 allocs/op
+BenchmarkSetOperations/All/size=1000-6                 	   18940	     62787 ns/op	   26104 B/op	      28 allocs/op
+BenchmarkSetOperations/New/size=10000-6                	     493	   2424366 ns/op	 1247798 B/op	   50277 allocs/op
+BenchmarkSetOperations/Add/size=10000-6                	     484	   2404775 ns/op	 1247708 B/op	   50276 allocs/op
+BenchmarkSetOperations/Contains/size=10000-6           	 5794514	       208.5 ns/op	      56 B/op	       4 allocs/op
+BenchmarkSetOperations/Delete/size=10000-6             	     345	   3470831 ns/op	 1527872 B/op	   75275 allocs/op
+BenchmarkSetOperations/Union/size=10000-6              	     210	   5577764 ns/op	 3199945 B/op	  100207 allocs/op
+BenchmarkSetOperations/Intersection/size=10000-6       	     586	   2086709 ns/op	  575022 B/op	   50353 allocs/op
+BenchmarkSetOperations/Difference/size=10000-6         	     256	   4337281 ns/op	 1798016 B/op	   99380 allocs/op
+BenchmarkSetOperations/SymmetricDifference/size=10000-6         	     135	   9011251 ns/op	 3586978 B/op	  198638 allocs/op
+BenchmarkSetOperations/Copy/size=10000-6                        	     392	   2668229 ns/op	 1245783 B/op	   50088 allocs/op
+BenchmarkSetOperations/Clear/size=10000-6                       	     492	   2441533 ns/op	 1247965 B/op	   50279 allocs/op
+BenchmarkSetOperations/MarshalJSON/size=10000-6                 	    3187	    373064 ns/op	  444688 B/op	      22 allocs/op
+BenchmarkSetOperations/UnmarshalJSON/size=10000-6               	     354	   3378989 ns/op	 1603631 B/op	   50110 allocs/op
+BenchmarkSetOperations/Filter/size=10000-6                      	     866	   1466335 ns/op	  628821 B/op	   25206 allocs/op
+BenchmarkSetOperations/Any/size=10000-6                         	    5515	    190232 ns/op	  358527 B/op	      35 allocs/op
+BenchmarkSetOperations/All/size=10000-6                         	    1352	    862772 ns/op	  358524 B/op	      35 allocs/op
+BenchmarkSetOperations/New/size=100000-6                        	      46	  26284301 ns/op	11260160 B/op	  503481 allocs/op
+BenchmarkSetOperations/Add/size=100000-6                        	      46	  26670372 ns/op	11261766 B/op	  503497 allocs/op
+BenchmarkSetOperations/Contains/size=100000-6                   	 4659417	       232.5 ns/op	      56 B/op	       4 allocs/op
+BenchmarkSetOperations/Delete/size=100000-6                     	      30	  37321163 ns/op	14060119 B/op	  753468 allocs/op
+BenchmarkSetOperations/Union/size=100000-6                      	      20	  53735666 ns/op	30082547 B/op	  956899 allocs/op
+BenchmarkSetOperations/Intersection/size=100000-6               	      48	  21720262 ns/op	 6521605 B/op	  521091 allocs/op
+BenchmarkSetOperations/Difference/size=100000-6                 	      27	  42046049 ns/op	15673518 B/op	  908216 allocs/op
+BenchmarkSetOperations/SymmetricDifference/size=100000-6        	      12	  94786719 ns/op	31386004 B/op	 1817118 allocs/op
+BenchmarkSetOperations/Copy/size=100000-6                       	      49	  25942929 ns/op	10985028 B/op	  478886 allocs/op
+BenchmarkSetOperations/Clear/size=100000-6                      	      44	  25490964 ns/op	11260040 B/op	  503486 allocs/op
+BenchmarkSetOperations/MarshalJSON/size=100000-6                	     309	   4208735 ns/op	 5524818 B/op	      43 allocs/op
+BenchmarkSetOperations/UnmarshalJSON/size=100000-6              	      31	  39771481 ns/op	15088083 B/op	  478927 allocs/op
+BenchmarkSetOperations/Filter/size=100000-6                     	      73	  14173343 ns/op	 5496347 B/op	  239687 allocs/op
+BenchmarkSetOperations/Any/size=100000-6                        	     624	   2256854 ns/op	 4102302 B/op	      44 allocs/op
+BenchmarkSetOperations/All/size=100000-6                        	     123	   9745327 ns/op	 4102324 B/op	      44 allocs/op
+PASS
+ok  	github.com/goloop/set	84.977s
