@@ -1,21 +1,31 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/goloop/set?v1)](https://goreportcard.com/report/github.com/goloop/set) [![License](https://img.shields.io/badge/license-MIT-brightgreen)](https://github.com/goloop/set/blob/master/LICENSE) [![License](https://img.shields.io/badge/godoc-YES-green)](https://godoc.org/github.com/goloop/set) [![Stay with Ukraine](https://img.shields.io/static/v1?label=Stay%20with&message=Ukraine%20♥&color=ffD700&labelColor=0057B8&style=flat)](https://u24.gov.ua/)
 
 
-# Set
+# set
 
-Set is a Go package that provides a parameterized Set data structure.
+A high-performance, thread-safe, generic Set implementation for Go with rich functionality and parallel processing capabilities.
 
 A Set can contain any type of object, including simple and complex types. It provides basic set operations, such as `Add`, `Delete`, `Contains`, and `Len`. In addition, it also provides complex set operations, such as `Union`, `Intersection`, `Difference`, `SymmetricDifference`, `IsSubset`, and `IsSuperset`.
 
-## Installation
 
-You can download and install the package by running:
+## Features
+
+- Generic type support for any comparable type
+- Thread-safe operations
+- Context-aware methods for cancellation support
+- Efficient parallel processing for large datasets
+- JSON serialization support
+- Rich set of operations (Union, Intersection, etc.)
+- Functional programming support (Map, Filter, Reduce)
+- Support for both simple and complex types
+
+## Installation
 
 ```shell
 go get github.com/goloop/set
 ```
 
-## Usage
+## Quick Start
 
 Here's a simple example of how to use the Set package.
 
@@ -441,7 +451,10 @@ func main() {
 
 See example [here](https://go.dev/play/p/nfvIji29YhN).
 
-## Documentation
-You can read more about the Set package and its functions on [Godoc](https://godoc.org/github.com/goloop/set).
+## Contributing
 
+Contributions are welcome! Please feel free to submit a Pull Request.
 
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
