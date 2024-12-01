@@ -1,0 +1,3 @@
+- Optimize Union and SymmetricDifference
+- Reduce the number of allocations in the Delete operation
+- Improve performance of UnmarshalJSON
