@@ -2,8 +2,25 @@ package set
 
 import (
 	"cmp"
+	"iter"
 	"slices"
 )
+
+// Collect builds a new set from all values produced by the iterator seq,
+// collapsing duplicates. It mirrors slices.Collect and maps.Collect, and pairs
+// with the Set.Iter method.
+//
+// Example usage:
+//
+//	m := map[string]int{"a": 1, "b": 2}
+//	keys := set.Collect(maps.Keys(m)) // a set of "a" and "b"
+func Collect[T comparable](seq iter.Seq[T]) *Set[T] {
+	s := &Set[T]{m: make(map[T]struct{})}
+	for v := range seq {
+		s.m[v] = struct{}{}
+	}
+	return s
+}
 
 // Map returns a new set whose elements are the results of applying fn to each
 // element of s. Unlike the Map method, this package-level function can change

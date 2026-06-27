@@ -57,8 +57,12 @@
 //
 //   - Elements: all elements as a slice (unordered)
 //   - Iter: an iter.Seq[T] for use with range
+//   - AddSeq, Collect: build a set from an iter.Seq[T]
 //   - Sorted method: order by a comparison function
 //   - Sorted function: natural order for cmp.Ordered element types
+//
+// The zero value of a Set is an empty, ready-to-use set; the first insertion
+// allocates its backing map.
 //
 // # Functional operations
 //

@@ -128,6 +128,70 @@ func FuzzJSONRoundTrip(f *testing.F) {
 	})
 }
 
+// FuzzModelAgainstMap is a stateful, model-based test: it replays a random
+// sequence of operations against both the Set under test and a reference
+// map[int]struct{}, asserting after every step that the two agree. Any
+// divergence in Add/Delete/Contains/Len/Pop semantics surfaces here.
+func FuzzModelAgainstMap(f *testing.F) {
+	f.Add([]byte{})
+	f.Add([]byte{0x00, 1, 0x00, 2, 0x40, 3})
+	f.Add([]byte{0x80, 5, 0xC0, 5, 0x00, 7, 0x80, 7})
+
+	f.Fuzz(func(t *testing.T, ops []byte) {
+		s := New[int]()
+		ref := make(map[int]struct{})
+
+		// Each step consumes two bytes: an opcode and a value. Values are kept
+		// in a small range so adds and deletes actually collide.
+		for i := 0; i+1 < len(ops); i += 2 {
+			val := int(ops[i+1] % 24)
+			switch ops[i] >> 6 { // top two bits -> one of four ops
+			case 0: // add (also the bias, since it is the common case)
+				s.Add(val)
+				ref[val] = struct{}{}
+			case 1: // delete
+				s.Delete(val)
+				delete(ref, val)
+			case 2: // contains must agree
+				_, want := ref[val]
+				if s.Contains(val) != want {
+					t.Fatalf("Contains(%d)=%v, ref=%v", val, s.Contains(val), want)
+				}
+			case 3: // pop must remove exactly one known element
+				got, ok := s.Pop()
+				if ok != (len(ref) > 0) {
+					t.Fatalf("Pop ok=%v but ref size=%d", ok, len(ref))
+				}
+				if ok {
+					if _, present := ref[got]; !present {
+						t.Fatalf("Pop returned %d not in reference", got)
+					}
+					delete(ref, got)
+				}
+			}
+
+			if s.Len() != len(ref) {
+				t.Fatalf("Len=%d, ref=%d after op %d", s.Len(), len(ref), ops[i]>>6)
+			}
+		}
+
+		// Final state must match the reference exactly, both directions.
+		if s.Len() != len(ref) {
+			t.Fatalf("final Len=%d, ref=%d", s.Len(), len(ref))
+		}
+		for v := range ref {
+			if !s.Contains(v) {
+				t.Fatalf("reference has %d, set does not", v)
+			}
+		}
+		for _, v := range s.Elements() {
+			if _, ok := ref[v]; !ok {
+				t.Fatalf("set has %d, reference does not", v)
+			}
+		}
+	})
+}
+
 // FuzzSubsetConsistency cross-checks the relation predicates against a
 // brute-force definition built only from Contains, so a bug in the optimized
 // size-based shortcuts would surface.

@@ -27,8 +27,10 @@ import (
 // least one of them mutates it, the callers are responsible for
 // synchronization, e.g. with a sync.Mutex or sync.RWMutex.
 //
-// The zero value of Set is not ready for use; create a Set with New or
-// NewWithCapacity.
+// The zero value of a Set is an empty, ready-to-use set: reads such as Len,
+// Contains and Iter return empty results, and the first insertion allocates
+// the backing map. New and NewWithCapacity are still preferred when the
+// element count is known, so the map is sized up front.
 type Set[T comparable] struct {
 	m map[T]struct{}
 }
@@ -74,7 +76,29 @@ func NewWithCapacity[T comparable](capacity int, items ...T) *Set[T] {
 //	s := set.New[int]()
 //	s.Add(1, 2, 3, 4) // s is 1, 2, 3 and 4
 func (s *Set[T]) Add(items ...T) {
+	if len(items) == 0 {
+		return
+	}
+	if s.m == nil {
+		s.m = make(map[T]struct{}, len(items))
+	}
 	for _, v := range items {
+		s.m[v] = struct{}{}
+	}
+}
+
+// AddSeq inserts every value produced by the iterator seq into the set. It is
+// the input counterpart of Iter and mirrors slices.Collect / maps.Collect.
+//
+// Example usage:
+//
+//	s := set.New[int]()
+//	s.AddSeq(slices.Values([]int{1, 2, 2, 3})) // s is 1, 2 and 3
+func (s *Set[T]) AddSeq(seq iter.Seq[T]) {
+	for v := range seq {
+		if s.m == nil {
+			s.m = make(map[T]struct{})
+		}
 		s.m[v] = struct{}{}
 	}
 }
@@ -92,8 +116,8 @@ func (s *Set[T]) Delete(items ...T) {
 	}
 }
 
-// Clear removes all elements from the set, leaving it empty. The underlying
-// capacity is released.
+// Clear removes all elements from the set, leaving it empty. The set keeps its
+// already allocated capacity, so reusing it after Clear avoids reallocation.
 //
 // Example usage:
 //
@@ -125,8 +149,11 @@ func (s *Set[T]) Overwrite(items ...T) {
 //	s1.Append(s2) // s1 is now 1, 2, 3, 4, 5 and 6
 func (s *Set[T]) Append(others ...*Set[T]) {
 	for _, other := range others {
-		if other == nil {
+		if other == nil || len(other.m) == 0 {
 			continue
+		}
+		if s.m == nil {
+			s.m = make(map[T]struct{}, len(other.m))
 		}
 		for v := range other.m {
 			s.m[v] = struct{}{}
@@ -577,7 +604,7 @@ func (s *Set[T]) IsDisjoint(other *Set[T]) bool {
 //	s := set.New(1, 2, 3, 4, 5)
 //	s.Filter(func(v int) bool { return v > 3 }) // 4, 5
 func (s *Set[T]) Filter(fn func(item T) bool) *Set[T] {
-	result := &Set[T]{m: make(map[T]struct{})}
+	result := &Set[T]{m: make(map[T]struct{}, len(s.m))}
 	for v := range s.m {
 		if fn(v) {
 			result.m[v] = struct{}{}

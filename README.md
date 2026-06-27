@@ -25,7 +25,8 @@ serialization.
 - Exact `==` identity — no hashing, no lost elements
 - Full set algebra and relation predicates
 - Functional helpers: `Map`, `Filter`, `Reduce`, `Fold`, `Any`, `All`
-- `iter.Seq[T]` iteration for `range`
+- `iter.Seq[T]` iteration for `range`, plus `AddSeq` / `Collect`
+- Usable zero value: `var s set.Set[int]` is an empty, ready-to-use set
 - JSON serialization through the standard `encoding/json` interfaces
 - Zero dependencies
 
@@ -186,6 +187,14 @@ set.Sorted(s)                                 // [1 2 3]  (natural order)
 s.Sorted(func(a, b int) int { return b - a }) // [3 2 1]  (custom order)
 ```
 
+Build a set from any `iter.Seq[T]` with `Collect`, or feed one into an
+existing set with `AddSeq`:
+
+```go
+keys := set.Collect(maps.Keys(m)) // set of the map's keys
+s.AddSeq(slices.Values(items))    // add all values from a slice
+```
+
 The package-level `set.Sorted` works for element types that satisfy
 `cmp.Ordered`; the `Sorted` method takes a comparison function (the same
 contract as `cmp.Compare`) for any other order.
@@ -248,7 +257,11 @@ Version 2 is a deliberate clean break:
   (`func(a, b T) int`); the package-level `set.Sorted` sorts `cmp.Ordered`
   types with no argument.
 - New: `Equal`, `IsProperSubset`, `IsProperSuperset`, `IsDisjoint`, `IsEmpty`,
-  `ContainsAll`, `ContainsAny`, `Pop`, `Iter`, and the `Fold` function.
+  `ContainsAll`, `ContainsAny`, `Pop`, `Iter`, `AddSeq`, and the `Fold` and
+  `Collect` functions.
+- The zero value `var s set.Set[T]` is now usable directly (the first
+  insertion allocates the backing map); `New` is still preferred when the size
+  is known.
 
 ## Contributing
 

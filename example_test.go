@@ -2,6 +2,7 @@ package set_test
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/goloop/set/v2"
 )
@@ -90,4 +91,17 @@ func ExampleSet_Iter() {
 	}
 	fmt.Println(sum)
 	// Output: 6
+}
+
+func ExampleCollect() {
+	s := set.Collect(slices.Values([]int{3, 1, 2, 2, 3}))
+	fmt.Println(set.Sorted(s))
+	// Output: [1 2 3]
+}
+
+func ExampleSet_AddSeq() {
+	s := set.New(1)
+	s.AddSeq(slices.Values([]int{2, 3, 3}))
+	fmt.Println(set.Sorted(s))
+	// Output: [1 2 3]
 }

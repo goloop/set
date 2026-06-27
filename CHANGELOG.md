@@ -24,9 +24,12 @@ import path is now `github.com/goloop/set/v2`.
 ### Added
 - `Equal`, `IsProperSubset`, `IsProperSuperset`, `IsDisjoint`.
 - `IsEmpty`, `ContainsAll`, `ContainsAny`, `Pop`.
-- `Iter` returning `iter.Seq[T]` for range iteration.
+- `Iter` returning `iter.Seq[T]` for range iteration, with `AddSeq` and the
+  package-level `Collect` to build a set from an `iter.Seq[T]`.
 - `Fold` (package function) with an explicit initial accumulator value.
 - `NewWithCapacity` for pre-sizing.
+- The zero value of a `Set` is now usable directly: reads return empty
+  results and the first insertion allocates the backing map.
 
 ### Removed
 - The reflection-based hashing of elements, and with it the possibility of
