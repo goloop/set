@@ -1,3 +1,3 @@
-module github.com/goloop/set
+module github.com/goloop/set/v2
 
-go 1.20
+go 1.24

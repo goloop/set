@@ -1,1210 +1,686 @@
 package set
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
-	"hash/fnv"
-	"reflect"
-	"sort"
-	"sync"
+	"iter"
+	"slices"
 )
 
-// sortingElement is a helper struct that is used to sort the set.
-type sortingElement[T any] struct {
-	key   uint64 // hash key
-	value T      // value
-}
-
-// Set is a set of any objects. The set can contain both simple and complex
-// types. It is important to note that the set can only one specific type.
-// This information is stored in the 'simple' field where -1 denotes complex
-// objects, 0 denotes that the type hasn't been set yet, and 1 denotes simple
-// objects. The actual elements are stored in a map called 'heap' where the
-// keys are hashed string representations of the objects, and the values are
-// the objects themselves.
-type Set[T any] struct {
-	heap   map[uint64]T // collection of objects
-	simple int          // -1 - complex object, 0 - not set, 1 - simple object
-	ctx    context.Context
-	mu     sync.RWMutex
-}
-
-// toHash converts the given object to a string. If the set contains simple
-// objects, this function uses the built-in Sprintf function to create the
-// string representation. If the set contains complex objects, this function
-// uses the 'valueToString' function to create a string representation of the
-// object. This function is mainly used as a helper function to create unique
-// keys for the 'heap' map in the Set.
-func (s *Set[T]) toHash(ctx context.Context, obj interface{}) (uint64, error) {
-	// If the context is nil, create a new one.
-	if ctx == nil {
-		ctx = context.Background()
-	}
-
-	// Create an FNV hash function.
-	hash := fnv.New64a()
-
-	// Write the object to the hash.
-	err := toHash(ctx, reflect.ValueOf(obj), hash)
-	if err != nil {
-		return 0, err
-	}
-
-	// Return the hash sum, and nil error.
-	return hash.Sum64(), nil
-}
-
-// IsSimple determines the complexity of the objects in the set, i.e.,
-// whether the objects are simple or complex.
+// Set is a generic, unordered collection of unique elements of a comparable
+// type T. It is backed by a Go map, so an element's identity is exactly the
+// language's own equality (==): two elements are "the same" if and only if
+// they are == to each other. This means there is no hashing, no reflection
+// and no possibility of silently losing elements to a hash collision; the
+// runtime map decides uniqueness.
 //
-// This method sets the field 'simple' based on the type of the object.
-// If the set contains simple types such as byte, chan, bool, string, rune,
-// int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64,
-// uintptr, float32, float64, complex64, or complex128, the 'simple'
-// field is set to 1.
+// The comparable constraint covers all the usual element types — the numeric
+// kinds, string, bool, pointers, channels, interfaces, and any struct or
+// array whose fields are themselves comparable. Slices, maps and functions
+// are not comparable and therefore cannot be Set elements directly; when you
+// need to deduplicate such values, derive a comparable key from them (for
+// example a string, or a struct of comparable fields) and build a Set of that
+// key.
 //
-// If the set contains complex types such as struct, array, slice,
-// map, func, etc., the 'simple' field is set to -1.
+// Set is not safe for concurrent use by multiple goroutines, exactly like the
+// built-in map it is built upon. If a Set is shared across goroutines and at
+// least one of them mutates it, the callers are responsible for
+// synchronization, e.g. with a sync.Mutex or sync.RWMutex.
 //
-// This method is invoked upon the creation of a set, and the complexity
-// information  is cached for efficient subsequent operations.
-// It returns true if the objects in the set are simple, and false otherwise.
-func (s *Set[T]) IsSimple() bool {
-	// If the complexity of the object is already defined.
-	if s.simple != 0 {
-		return s.simple == 1
-	}
-
-	// Determine the complexity of the object.
-	// All simple types like: byte, chan, bool, string, rune, int,
-	// int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64,
-	// uintptr, float32, float64, complex64, complex128.
-	// So set s.simple = 1.
-	//
-	// Other types of data, such as struct, array, slice, map, func, etc. -
-	// are complex types. So set s.simple = -1.
-	s.simple = 1
-	k := reflect.TypeOf(s.heap).Elem().Kind()
-	if k != reflect.String && k >= reflect.Array && k <= reflect.Struct {
-		s.simple = -1
-	}
-
-	return s.simple == 1
+// The zero value of Set is not ready for use; create a Set with New or
+// NewWithCapacity.
+type Set[T comparable] struct {
+	m map[T]struct{}
 }
 
-// IsComplex returns true if the objects in the set are complex,
-// and false otherwise.
-func (s *Set[T]) IsComplex() bool {
-	return !s.IsSimple()
-}
-
-// addWithContext adds the given items to the set.
-func (s *Set[T]) addWithContext(ctx context.Context, items ...T) error {
-	// If the context is nil, create a new default context.
-	if ctx == nil {
-		ctx = context.Background()
-	}
-
-	// Add the items to the set.
-	for _, v := range items {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-			name, err := s.toHash(ctx, v)
-			if err != nil {
-				return err
-			}
-
-			s.heap[name] = v
-		}
-	}
-
-	return nil
-}
-
-// Add adds the given items to the set.
+// New creates a new Set containing the given items. Duplicate items collapse
+// into a single element, so New(1, 2, 2, 3) holds exactly 1, 2 and 3.
 //
 // Example usage:
 //
-//	// Define a new set.
-//	s := set.New[int]()
+//	empty := set.New[int]()        // an empty set of int
+//	s := set.New(1, 2, 3, 4)       // a set of int with four elements
+//	letters := set.New("a", "b")   // a set of string
+func New[T comparable](items ...T) *Set[T] {
+	s := &Set[T]{m: make(map[T]struct{}, len(items))}
+	s.Add(items...)
+	return s
+}
+
+// NewWithCapacity creates a new Set with room pre-allocated for at least
+// capacity elements before the underlying map needs to grow. Any items passed
+// are added after the allocation. Use it when you know roughly how many
+// elements you are about to insert to avoid repeated map resizes.
 //
-//	// Add elements to the set.
-//	s.Add(1, 2, 3, 4) // s is 1, 2, 3, and 4
+// A negative capacity is treated as zero.
+func NewWithCapacity[T comparable](capacity int, items ...T) *Set[T] {
+	if capacity < 0 {
+		capacity = 0
+	}
+	if capacity < len(items) {
+		capacity = len(items)
+	}
+
+	s := &Set[T]{m: make(map[T]struct{}, capacity)}
+	s.Add(items...)
+	return s
+}
+
+// Add inserts the given items into the set. Items already present are left
+// untouched, so Add is idempotent.
+//
+// Example usage:
+//
+//	s := set.New[int]()
+//	s.Add(1, 2, 3, 4) // s is 1, 2, 3 and 4
 func (s *Set[T]) Add(items ...T) {
-	s.addWithContext(s.ctx, items...)
-}
-
-// deleteWithContext removes the given items from the set.
-func (s *Set[T]) deleteWithContext(ctx context.Context, items ...T) error {
-	// If the context is nil, create a new default context.
-	if ctx == nil {
-		ctx = context.Background()
-	}
-
-	// Remove the items from the set.
 	for _, v := range items {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-			name, err := s.toHash(ctx, v)
-			if err != nil {
-				return err
-			}
-
-			delete(s.heap, name)
-		}
+		s.m[v] = struct{}{}
 	}
-
-	return nil
 }
 
-// Delete removes the given items from the set.
+// Delete removes the given items from the set. Items that are not present are
+// ignored.
 //
 // Example usage:
 //
-//	// Define a new set and add some elements
-//	s := set.New[int]()
-//	s.Add(1, 2, 3, 4)
-//
-//	// Remove elements from the set
+//	s := set.New(1, 2, 3, 4)
 //	s.Delete(1, 3) // s is 2 and 4
 func (s *Set[T]) Delete(items ...T) {
-	s.deleteWithContext(s.ctx, items...)
+	for _, v := range items {
+		delete(s.m, v)
+	}
 }
 
-// containsWithContext returns true if the set contains the given item.
-func (s *Set[T]) containsWithContext(
-	ctx context.Context,
-	item T,
-) (bool, error) {
-	// If the context is nil, create a new default context.
-	if ctx == nil {
-		ctx = context.Background()
-	}
-
-	// Get the hash of the item.
-	name, err := s.toHash(ctx, item)
-	if err != nil {
-		return false, err
-	}
-
-	_, ok := s.heap[name]
-	return ok, nil
-}
-
-// Contains returns true if the set contains the given item.
+// Clear removes all elements from the set, leaving it empty. The underlying
+// capacity is released.
 //
 // Example usage:
 //
-//	// Define a new set and add some elements.
-//	s := set.New[int]()
-//	s.Add(1, 2, 3, 4)
+//	s := set.New(1, 2, 3)
+//	s.Clear() // s is now empty
+func (s *Set[T]) Clear() {
+	clear(s.m)
+}
+
+// Overwrite replaces the entire contents of the set with the given items, as
+// if by Clear followed by Add.
 //
-//	// Check if the set contains certain elements.
-//	containsOne := s.Contains(1)  // returns true
-//	containsFive := s.Contains(5) // returns false
+// Example usage:
+//
+//	s := set.New(1, 2, 3)
+//	s.Overwrite(5, 6, 7) // s is now 5, 6 and 7
+func (s *Set[T]) Overwrite(items ...T) {
+	clear(s.m)
+	s.Add(items...)
+}
+
+// Append adds every element of each of the given sets into this set, mutating
+// it in place. It is the in-place counterpart of Union.
+//
+// Example usage:
+//
+//	s1 := set.New(1, 2, 3)
+//	s2 := set.New(4, 5, 6)
+//	s1.Append(s2) // s1 is now 1, 2, 3, 4, 5 and 6
+func (s *Set[T]) Append(others ...*Set[T]) {
+	for _, other := range others {
+		if other == nil {
+			continue
+		}
+		for v := range other.m {
+			s.m[v] = struct{}{}
+		}
+	}
+}
+
+// Contains reports whether the item is present in the set.
+//
+// Example usage:
+//
+//	s := set.New(1, 2, 3, 4)
+//	s.Contains(1) // true
+//	s.Contains(5) // false
 func (s *Set[T]) Contains(item T) bool {
-	r, _ := s.containsWithContext(s.ctx, item)
-	return r
+	_, ok := s.m[item]
+	return ok
 }
 
-// elementsWithContext returns all items in the set.
-func (s *Set[T]) elementsWithContext(ctx context.Context) ([]T, error) {
-	var items []T
-
-	// If the context is nil, create a new default context.
-	if ctx == nil {
-		ctx = context.Background()
-	}
-
-	// Select all items from the set.
-	for _, v := range s.heap {
-		select {
-		case <-ctx.Done():
-			return []T{}, ctx.Err()
-		default:
-			items = append(items, v)
-		}
-	}
-
-	return items, nil
-}
-
-// Elements returns all items in the set.
-// This is useful when you need to iterate over the set,
-// or when you need to convert the set to a slice ([]T).
-// Note that the order of items is not guaranteed.
+// ContainsAll reports whether every one of the given items is present in the
+// set. It returns true for an empty argument list (vacuously true).
 //
 // Example usage:
 //
-//	s := set.New[int]()
-//	s.Add(1, 2, 3, 4)
-//	elements := s.Elements()  // elements is []int{1, 2, 3, 4}
+//	s := set.New(1, 2, 3, 4)
+//	s.ContainsAll(1, 2) // true
+//	s.ContainsAll(1, 9) // false
+func (s *Set[T]) ContainsAll(items ...T) bool {
+	for _, v := range items {
+		if _, ok := s.m[v]; !ok {
+			return false
+		}
+	}
+	return true
+}
+
+// ContainsAny reports whether at least one of the given items is present in
+// the set. It returns false for an empty argument list.
+//
+// Example usage:
+//
+//	s := set.New(1, 2, 3, 4)
+//	s.ContainsAny(9, 2) // true
+//	s.ContainsAny(8, 9) // false
+func (s *Set[T]) ContainsAny(items ...T) bool {
+	for _, v := range items {
+		if _, ok := s.m[v]; ok {
+			return true
+		}
+	}
+	return false
+}
+
+// Len returns the number of elements in the set.
+//
+// Example usage:
+//
+//	s := set.New(1, 2, 3, 4)
+//	s.Len() // 4
+func (s *Set[T]) Len() int {
+	return len(s.m)
+}
+
+// IsEmpty reports whether the set has no elements.
+//
+// Example usage:
+//
+//	set.New[int]().IsEmpty()  // true
+//	set.New(1).IsEmpty()      // false
+func (s *Set[T]) IsEmpty() bool {
+	return len(s.m) == 0
+}
+
+// Elements returns a slice with all elements of the set. The order is not
+// specified and may differ between calls; use Sorted when you need a stable
+// order.
+//
+// Example usage:
+//
+//	s := set.New(1, 2, 3, 4)
+//	e := s.Elements() // some permutation of 1, 2, 3, 4
 func (s *Set[T]) Elements() []T {
-	r, _ := s.elementsWithContext(s.ctx)
-	return r
+	result := make([]T, 0, len(s.m))
+	for v := range s.m {
+		result = append(result, v)
+	}
+	return result
 }
 
-// sortedWithContext returns a slice of the sorted elements of the set
-// using the provided context.
-func (s *Set[T]) sortedWithContext(
-	ctx context.Context,
-	fns ...func(a, b T) bool,
-) ([]T, error) {
-	// If the context is nil, create a new default context.
-	if ctx == nil {
-		ctx = context.Background()
-	}
-
-	// Create a temporary slice of sortMarker[T] to hold
-	// the data and sort it.
-	tmp := make([]sortingElement[T], 0, len(s.heap)) // here is the change
-	for k, v := range s.heap {
-		select {
-		case <-ctx.Done():
-			return []T{}, ctx.Err()
-		default:
-			tmp = append(tmp, sortingElement[T]{key: k, value: v})
-		}
-	}
-
-	// Sort the temporary slice.
-	if len(fns) == 0 {
-		// If the user has not specified the sorting method(s),
-		// then it is better to sort simple values by converting
-		// them to a string. After all, the key for simple numbers,
-		//for example: 1, 2, 3, 4... will not always have a consistent state.
-		if s.IsSimple() {
-			// Simple data is sorted by the value converted to a string.
-			sort.Slice(tmp, func(i, j int) bool {
-				a, b := fmt.Sprint(tmp[i].value), fmt.Sprint(tmp[j].value)
-				return a < b
-			})
-		} else {
-			// Complex data is sorted by key.
-			// Note! The key does not guarantee any logical sorting,
-			// it is only a hash of the object, which in the order
-			// state may not meet the needs of the user.
-			//
-			// But we need to perform at least some sorting so that Sort
-			// for the same Set always returns the same sequence.
-			sort.Slice(tmp, func(i, j int) bool {
-				return tmp[i].key < tmp[j].key
-			})
-		}
-	} else {
-		for _, fn := range fns {
-			sort.Slice(tmp, func(i, j int) bool {
-				return fn(tmp[i].value, tmp[j].value)
-			})
-		}
-	}
-
-	// Create a new slice of T and copy the values over.
-	var result = make([]T, len(tmp))
-	for i, v := range tmp {
-		select {
-		case <-ctx.Done():
-			return []T{}, ctx.Err()
-		default:
-			result[i] = v.value
-		}
-	}
-
-	return result, nil
-}
-
-// Sorted returns a slice of the sorted elements of the set.
+// Iter returns an iterator over the elements of the set for use with range.
+// The iteration order is not specified. It is not safe to add to or delete
+// from the set while iterating over it.
 //
 // Example usage:
 //
-//	s := set.New[int]()
-//	s.Add(3, 1, 2)
-//
-//	sorted := s.Sorted() // sorted contains 1, 2, 3
-func (s *Set[T]) Sorted(fns ...func(a, b T) bool) []T {
-	r, _ := s.sortedWithContext(s.ctx, fns...)
-	return r
+//	s := set.New(1, 2, 3)
+//	for v := range s.Iter() {
+//	    fmt.Println(v)
+//	}
+func (s *Set[T]) Iter() iter.Seq[T] {
+	return func(yield func(T) bool) {
+		for v := range s.m {
+			if !yield(v) {
+				return
+			}
+		}
+	}
 }
 
-// filteredWithContext returns a slice of items that satisfy the
-// provided predicate.
-func (s *Set[T]) filteredWithContext(
-	ctx context.Context,
-	fn func(item T) bool,
-) ([]T, error) {
-	// If the context is nil, create a new default context.
-	if ctx == nil {
-		ctx = context.Background()
-	}
+// Sorted returns all elements of the set as a slice ordered by the given
+// comparison function, which must follow the same contract as the standard
+// library cmp.Compare: it returns a negative number when a should sort before
+// b, a positive number when a should sort after b, and zero when they are
+// equal. The sort is stable, although for a set the elements are unique so
+// stability only matters when cmp treats distinct elements as equal.
+//
+// For element types whose natural ordering you want, use the package-level
+// Sorted function instead, which requires no comparison function.
+//
+// Example usage:
+//
+//	s := set.New(3, 1, 2)
+//	s.Sorted(func(a, b int) int { return a - b }) // 1, 2, 3
+func (s *Set[T]) Sorted(cmp func(a, b T) int) []T {
+	result := s.Elements()
+	slices.SortStableFunc(result, cmp)
+	return result
+}
 
-	var result = make([]T, 0, len(s.heap))
-	for _, v := range s.heap {
-		select {
-		case <-ctx.Done():
-			return []T{}, ctx.Err()
-		default:
-		}
-
+// Filtered returns a slice with the elements that satisfy the predicate fn.
+// The order is not specified. Use Filter to obtain a new Set instead of a
+// slice.
+//
+// Example usage:
+//
+//	s := set.New(1, 2, 3, 4, 5)
+//	s.Filtered(func(v int) bool { return v > 3 }) // 4 and 5
+func (s *Set[T]) Filtered(fn func(item T) bool) []T {
+	result := make([]T, 0, len(s.m))
+	for v := range s.m {
 		if fn(v) {
 			result = append(result, v)
 		}
 	}
-
-	return result, nil
+	return result
 }
 
-// Filtered returns slice of items that satisfy the provided predicate.
+// Pop removes an arbitrary element from the set and returns it together with
+// true. If the set is empty it returns the zero value of T and false. Because
+// the set is unordered there is no guarantee which element is returned.
 //
 // Example usage:
 //
-//	s := set.New[int]()
-//	s.Add(1, 2, 3, 4, 5)
-//
-//	filtered := s.Filtered(func(item int) bool {
-//		return item > 3
-//	}) // filtered contains 4, 5
-func (s *Set[T]) Filtered(fn func(item T) bool) []T {
-	r, _ := s.filteredWithContext(s.ctx, fn)
-	return r
+//	s := set.New(1, 2, 3)
+//	v, ok := s.Pop() // v is one of 1, 2, 3; ok is true
+func (s *Set[T]) Pop() (T, bool) {
+	for v := range s.m {
+		delete(s.m, v)
+		return v, true
+	}
+
+	var zero T
+	return zero, false
 }
 
-// Len returns the number of items in the set.
-// This is useful when you need to know how many items are in the set.
+// Copy returns a new set holding the same elements as this one. The two sets
+// are independent: mutating one does not affect the other.
 //
 // Example usage:
 //
-//	s := set.New[int]()
-//	s.Add(1, 2, 3, 4)
-//	length := s.Len()  // length is 4
-func (s *Set[T]) Len() int {
-	return len(s.heap)
+//	s := set.New(1, 2, 3)
+//	c := s.Copy() // c is an independent set 1, 2, 3
+func (s *Set[T]) Copy() *Set[T] {
+	result := &Set[T]{m: make(map[T]struct{}, len(s.m))}
+	for v := range s.m {
+		result.m[v] = struct{}{}
+	}
+	return result
 }
 
-// uniunWithContext returns a new set with all the items in both sets.
-func (s *Set[T]) unionWithContext(
-	ctx context.Context,
-	set *Set[T],
-) (*Set[T], error) {
-	// If the context is nil, create a new default context.
-	if ctx == nil {
-		ctx = context.Background()
-	}
-
-	// Elements of the base set.
-	e, err := s.elementsWithContext(ctx)
-	if err != nil {
-		return New[T](), err
-	}
-	result := New[T](e...)
-
-	// Elements of the other set.
-	e, err = set.elementsWithContext(ctx)
-	if err != nil {
-		return New[T](), err
-	}
-	result.Add(e...)
-
-	return result, nil
-}
-
-// Union returns a new set with all the items in both sets.
-// This is useful when you want to merge two sets into a new one.
-// Note that the result set will not have any duplicate items, even
-// if the input sets do.
+// Union returns a new set with every element that is in this set or in any of
+// the other sets. The receiver and the arguments are not modified.
 //
 // Example usage:
 //
-//	s1 := set.New[int]()
-//	s1.Add(1, 2, 3)
-//
-//	s2 := set.New[int]()
-//	s2.Add(3, 4, 5)
-//
-//	union := s1.Union(s2)  // union contains 1, 2, 3, 4, 5
-func (s *Set[T]) Union(set *Set[T]) *Set[T] {
-	r, _ := s.unionWithContext(s.ctx, set)
-	return r
+//	s1 := set.New(1, 2, 3)
+//	s2 := set.New(3, 4, 5)
+//	s1.Union(s2) // 1, 2, 3, 4, 5
+func (s *Set[T]) Union(others ...*Set[T]) *Set[T] {
+	result := s.Copy()
+	result.Append(others...)
+	return result
 }
 
-// intersectionWithContext returns a new set with items that exist
-// only in both sets.
-func (s *Set[T]) intersectionWithContext(
-	ctx context.Context,
-	set *Set[T],
-) (*Set[T], error) {
-	// If the context is nil, create a new default context.
-	if ctx == nil {
-		ctx = context.Background()
-	}
-
-	result := New[T]()
-	for _, v := range s.heap {
-		ok, err := set.containsWithContext(ctx, v)
-		if ok {
-			err = result.addWithContext(ctx, v)
+// Intersection returns a new set with the elements common to this set and
+// every one of the other sets. With no arguments it returns a copy of this
+// set.
+//
+// To keep the work proportional to the smallest input, the result is seeded
+// from whichever set is smaller at each step.
+//
+// Example usage:
+//
+//	s1 := set.New(1, 2, 3)
+//	s2 := set.New(3, 4, 5)
+//	s1.Intersection(s2) // 3
+func (s *Set[T]) Intersection(others ...*Set[T]) *Set[T] {
+	result := s.Copy()
+	for _, other := range others {
+		if other == nil {
+			result.Clear()
+			break
 		}
 
-		if err != nil {
-			return New[T](), err
+		// Iterate the smaller side, probe the larger one.
+		small, large := result, other
+		if large.Len() < small.Len() {
+			small, large = large, small
 		}
+
+		next := &Set[T]{m: make(map[T]struct{}, small.Len())}
+		for v := range small.m {
+			if _, ok := large.m[v]; ok {
+				next.m[v] = struct{}{}
+			}
+		}
+		result = next
 	}
-
-	return result, nil
-}
-
-// Intersection returns a new set with items that exist only in both sets.
-//
-// Example usage:
-//
-//	s1 := set.New[int]()
-//	s1.Add(1, 2, 3)
-//
-//	s2 := set.New[int]()
-//	s2.Add(3, 4, 5)
-//
-//	intersection := s1.Intersection(s2)  // intersection contains 3
-func (s *Set[T]) Intersection(set *Set[T]) *Set[T] {
-	r, _ := s.intersectionWithContext(s.ctx, set)
-	return r
+	return result
 }
 
 // Inter is an alias for Intersection.
-func (s *Set[T]) Inter(set *Set[T]) *Set[T] {
-	return s.Intersection(set)
+func (s *Set[T]) Inter(others ...*Set[T]) *Set[T] {
+	return s.Intersection(others...)
 }
 
-// differenceWithContext returns a new set with items in the first set but
-// not in the second.
-func (s *Set[T]) differenceWithContext(
-	ctx context.Context,
-	set *Set[T],
-) (*Set[T], error) {
-	// If the context is nil, create a new default context.
-	if ctx == nil {
-		ctx = context.Background()
-	}
-
-	result := New[T]()
-	for _, v := range s.heap {
-		select {
-		case <-ctx.Done():
-			return New[T](), ctx.Err()
-		default:
-		}
-
-		if !set.Contains(v) {
-			result.Add(v)
-		}
-	}
-
-	return result, nil
-}
-
-// Difference returns a new set with items in the first set but
-// not in the second. This is useful when you want to find items
-// that are unique to the first set.
+// Difference returns a new set with the elements that are in this set but in
+// none of the other sets.
 //
 // Example usage:
 //
-//	s1 := set.New[int]()
-//	s1.Add(1, 2, 3)
-//
-//	s2 := set.New[int]()
-//	s2.Add(3, 4, 5)
-//
-//	difference := s1.Difference(s2)  // difference contains 1, 2
-func (s *Set[T]) Difference(set *Set[T]) *Set[T] {
-	r, _ := s.differenceWithContext(s.ctx, set)
-	return r
+//	s1 := set.New(1, 2, 3)
+//	s2 := set.New(3, 4, 5)
+//	s1.Difference(s2) // 1, 2
+func (s *Set[T]) Difference(others ...*Set[T]) *Set[T] {
+	result := &Set[T]{m: make(map[T]struct{}, len(s.m))}
+	for v := range s.m {
+		inOther := false
+		for _, other := range others {
+			if other == nil {
+				continue
+			}
+			if _, ok := other.m[v]; ok {
+				inOther = true
+				break
+			}
+		}
+		if !inOther {
+			result.m[v] = struct{}{}
+		}
+	}
+	return result
 }
 
 // Diff is an alias for Difference.
-func (s *Set[T]) Diff(set *Set[T]) *Set[T] {
-	return s.Difference(set)
+func (s *Set[T]) Diff(others ...*Set[T]) *Set[T] {
+	return s.Difference(others...)
 }
 
-// symmetricDifferenceWithContext returns a new set with items in either
-// the first or second set but not both.
-func (s *Set[T]) symmetricDifferenceWithContext(
-	ctx context.Context,
-	set *Set[T],
-) (*Set[T], error) {
-	// If the context is nil, create a new default context.
-	if ctx == nil {
-		ctx = context.Background()
-	}
-
-	// Elements of the base set.
-	result := New[T]()
-	for _, v := range s.heap {
-		select {
-		case <-ctx.Done():
-			return New[T](), ctx.Err()
-		default:
-		}
-
-		if !set.Contains(v) {
-			result.Add(v)
-		}
-	}
-
-	// Elements of the other set.
-	for _, v := range set.heap {
-		select {
-		case <-ctx.Done():
-			return New[T](), ctx.Err()
-		default:
-		}
-
-		if !s.Contains(v) {
-			result.Add(v)
-		}
-	}
-
-	return result, nil
-}
-
-// SymmetricDifference returns a new set with items in either the first or
-// second set but not both. This is useful when you want to find
-// items that are unique to each set.
+// SymmetricDifference returns a new set with the elements that appear in an
+// odd number of the input sets (this set together with the others). For two
+// sets this is the classic symmetric difference: elements in exactly one of
+// the two. For more sets it generalises to elements whose total number of
+// memberships across all sets is odd.
 //
 // Example usage:
 //
-//	s1 := set.New[int]()
-//	s1.Add(1, 2, 3)
-//
-//	s2 := set.New[int]()
-//	s2.Add(3, 4, 5)
-//
-//	symmetricDifference := s1.SymmetricDifference(s2)  // 1, 2, 4, 5
-func (s *Set[T]) SymmetricDifference(set *Set[T]) *Set[T] {
-	r, _ := s.symmetricDifferenceWithContext(s.ctx, set)
-	return r
+//	s1 := set.New(1, 2, 3)
+//	s2 := set.New(3, 4, 5)
+//	s1.SymmetricDifference(s2) // 1, 2, 4, 5
+func (s *Set[T]) SymmetricDifference(others ...*Set[T]) *Set[T] {
+	result := s.Copy()
+	for _, other := range others {
+		if other == nil {
+			continue
+		}
+		for v := range other.m {
+			if _, ok := result.m[v]; ok {
+				delete(result.m, v)
+			} else {
+				result.m[v] = struct{}{}
+			}
+		}
+	}
+	return result
 }
 
 // Sdiff is an alias for SymmetricDifference.
-func (s *Set[T]) Sdiff(set *Set[T]) *Set[T] {
-	return s.SymmetricDifference(set)
+func (s *Set[T]) Sdiff(others ...*Set[T]) *Set[T] {
+	return s.SymmetricDifference(others...)
 }
 
-// mapWithContext returns a new set with the results of applying the
-// provided function to each item in the set using the provided context.
-func (s *Set[T]) mapWithContext(
-	ctx context.Context,
-	fn func(item T) T,
-) (*Set[T], error) {
-	// If the context is nil, create a new default context.
-	if ctx == nil {
-		ctx = context.Background()
-	}
-
-	// Create a new set to store the results.
-	result := New[T]()
-	for _, v := range s.heap {
-		select {
-		case <-ctx.Done():
-			return New[T](), ctx.Err()
-		default:
-		}
-
-		result.Add(fn(v))
-	}
-
-	return result, nil
-}
-
-// Map returns a new set with the results of applying the provided function
-// to each item in the set.
-//
-// The result can only be of the same type as the elements of the set.
-// For more flexibility, pay attention to the set.Reduce function.
+// Equal reports whether this set and the other set contain exactly the same
+// elements. A nil other is treated as the empty set.
 //
 // Example usage:
 //
-//	s := set.New[int]()
-//	s.Add(1, 2, 3)
-//
-//	mapped := s.Map(func(item int) int {
-//		return item * 2
-//	}) // mapped contains 2, 4, 6
-//
-// Due to the fact that methods in Go don't support generics to change
-// the result type we have to use the set.Map function.
-func (s *Set[T]) Map(fn func(item T) T) *Set[T] {
-	r, _ := s.mapWithContext(s.ctx, fn)
-	return r
-}
-
-// reduceWithContext returns a single value by applying the provided function
-// to each item in the set and passing the result of previous function call
-// as the first argument in the next call.
-func (s *Set[T]) reduceWithContext(
-	ctx context.Context,
-	fn func(acc, item T) T,
-) (T, error) {
-	// If context is nil, create default context.
-	if ctx == nil {
-		ctx = context.Background()
+//	set.New(1, 2, 3).Equal(set.New(3, 2, 1)) // true
+//	set.New(1, 2).Equal(set.New(1, 2, 3))    // false
+func (s *Set[T]) Equal(other *Set[T]) bool {
+	if other == nil {
+		return len(s.m) == 0
 	}
-
-	// Calculate.
-	var acc T
-	for _, v := range s.heap {
-		select {
-		case <-ctx.Done():
-			return acc, ctx.Err()
-		default:
-		}
-
-		acc = fn(acc, v)
+	if len(s.m) != len(other.m) {
+		return false
 	}
-
-	return acc, nil
-}
-
-// Reduce returns a single value by applying the provided function to each
-// item in the set and passing the result of previous function call as the
-// first argument in the next call.
-//
-// The result can only be of the same type as the elements of the set.
-// For more flexibility, pay attention to the set.Reduce function.
-//
-// Example usage:
-//
-//	s := set.New[int]()
-//	s.Add(1, 2, 3)
-//
-//	sum := s.Reduce(func(acc, item int) int) T {
-//		return acc + item
-//	}) // sum is 6
-func (s *Set[T]) Reduce(fn func(acc, item T) T) T {
-	acc, _ := s.reduceWithContext(nil, fn)
-	return acc
-}
-
-// copyWithContext returns a new set with a copy of items in the set
-// using the provided context.
-func (s *Set[T]) copyWithContext(ctx context.Context) (*Set[T], error) {
-	// If the context is nil, create a new default context.
-	if ctx == nil {
-		ctx = context.Background()
-	}
-
-	// Create a new set to store the results.
-	result := New[T]()
-	for _, v := range s.heap {
-		if err := result.addWithContext(ctx, v); err != nil {
-			return New[T](), err
+	for v := range s.m {
+		if _, ok := other.m[v]; !ok {
+			return false
 		}
 	}
-
-	return result, nil
+	return true
 }
 
-// Copy returns a new set with a copy of items in the set.
-// This is useful when you want to copy the set.
+// IsSubset reports whether every element of this set is also in the other set
+// (this ⊆ other). A set is a subset of itself, so equal sets are subsets of
+// each other. A nil other is treated as the empty set.
 //
 // Example usage:
 //
-//	s := set.New[int]()
-//	s.Add(1, 2, 3)
-//
-//	copied := s.Copy() // copied contains 1, 2, 3
-func (s *Set[T]) Copy() *Set[T] {
-	r, _ := s.copyWithContext(s.ctx)
-	return r
-}
-
-// appendWithContext adds all elements from the provided sets to the current
-// set using the provided context.
-func (s *Set[T]) appendWithContext(
-	ctx context.Context,
-	sets ...*Set[T],
-) error {
-	// If the context is nil, create a new default context.
-	if ctx == nil {
-		ctx = context.Background()
+//	set.New(1, 2).IsSubset(set.New(1, 2, 3)) // true
+//	set.New(1, 2, 3).IsSubset(set.New(1, 2)) // false
+//	set.New(1, 2).IsSubset(set.New(1, 2))    // true
+func (s *Set[T]) IsSubset(other *Set[T]) bool {
+	if other == nil {
+		return len(s.m) == 0
 	}
-
-	// Add all elements from the provided sets to the current set.
-	for _, set := range sets {
-		for _, v := range set.heap {
-			if err := s.addWithContext(ctx, v); err != nil {
-				return err
-			}
+	if len(s.m) > len(other.m) {
+		return false
+	}
+	for v := range s.m {
+		if _, ok := other.m[v]; !ok {
+			return false
 		}
 	}
-
-	return nil
-}
-
-// Append adds all elements from the provided sets to the current set.
-//
-// Example usage:
-//
-//	s1 := set.New[int]()
-//	s1.Add(1, 2, 3)
-//
-//	s2 := New[int]()
-//	s2.Add(4, 5, 6)
-//
-//	s1.Append(s2)  // s1 now contains 1, 2, 3, 4, 5, 6
-func (s *Set[T]) Append(sets ...*Set[T]) {
-	s.appendWithContext(s.ctx, sets...)
-}
-
-// extendWithContext adds all elements from the provided sets to the current
-// set using the provided context.
-func (s *Set[T]) extendWithContext(
-	ctx context.Context,
-	sets []*Set[T],
-) error {
-	return s.appendWithContext(ctx, sets...)
-}
-
-// Extend adds all elements from the provided slice of sets to the current set.
-//
-// Example usage:
-//
-//	s1 := set.New[int]()
-//	s1.Add(1, 2, 3)
-//
-//	s2 := set.New[int]()
-//	s2.Add(4, 5, 6)
-//
-//	s1.Extend(s2)  // s1 now contains 1, 2, 3, 4, 5, 6
-func (s *Set[T]) Extend(sets []*Set[T]) {
-	s.extendWithContext(s.ctx, sets)
-}
-
-// overwriteWithContext removes all items from the set and adds the provided
-// items using the provided context.
-func (s *Set[T]) overwriteWithContext(
-	ctx context.Context,
-	items ...T,
-) error {
-	// If the context is nil, create a new default context.
-	if ctx == nil {
-		ctx = context.Background()
-	}
-
-	// Clear the set.
-	s.Clear()
-	return s.addWithContext(ctx, items...)
-}
-
-// Overwrite removes all items from the set and adds the provided items.
-//
-// Example usage:
-//
-//	s := set.New[int]()
-//	s.Add(1, 2, 3)
-//	s.Elements() // returns []int{1, 2, 3}
-//
-//	s.Overwrite(5, 6, 7) // as s.Clear() and s.Add(5, 6, 7)
-//	s.Elements() // returns []int{5, 6, 7}
-func (s *Set[T]) Overwrite(items ...T) {
-	s.Clear()
-	s.addWithContext(s.ctx, items...)
-}
-
-// isSubsetWithContext returns true if all items in the first
-// set exist in the second.
-func (s *Set[T]) isSubsetWithContext(
-	ctx context.Context,
-	set *Set[T],
-) (bool, error) {
-	// If context is nil, create default context.
-	if ctx == nil {
-		ctx = context.Background()
-	}
-
-	if s.Len() >= set.Len() {
-		return false, nil
-	}
-
-	// Elements of the set.
-	for _, v := range s.heap {
-		select {
-		case <-ctx.Done():
-			return false, ctx.Err()
-		default:
-		}
-
-		if !set.Contains(v) {
-			return false, nil
-		}
-	}
-
-	return true, nil
-}
-
-// IsSubset returns true if all items in the first set exist in the second.
-// This is useful when you want to check if all items of one set
-// belong to another set.
-//
-// Example usage:
-//
-//	s1 := set.New[int]()
-//	s1.Add(1, 2, 3)
-//
-//	s2 := set.New[int]()
-//	s2.Add(1, 2, 3, 4, 5)
-//
-//	isSubset := s1.IsSubset(s2)  // isSubset is true
-func (s *Set[T]) IsSubset(set *Set[T]) bool {
-	r, _ := s.isSubsetWithContext(s.ctx, set)
-	return r
+	return true
 }
 
 // IsSub is an alias for IsSubset.
-func (s *Set[T]) IsSub(set *Set[T]) bool {
-	return s.IsSubset(set)
+func (s *Set[T]) IsSub(other *Set[T]) bool {
+	return s.IsSubset(other)
 }
 
-// isSupersetWithContext returns true if all items in the second
-// set exist in the first.
-func (s *Set[T]) isSupersetWithContext(
-	ctx context.Context,
-	set *Set[T],
-) (bool, error) {
-	// If the context is nil, create a new default context.
-	if ctx == nil {
-		ctx = context.Background()
-	}
-
-	// If s is smaller than set, it cannot be a superset.
-	if s.Len() < set.Len() {
-		return false, nil
-	}
-
-	// Elements of the other set.
-	for _, v := range set.heap {
-		ok, err := s.containsWithContext(ctx, v)
-		if err != nil {
-			return false, err
-		}
-
-		if !ok && err == nil {
-			return false, nil
-		}
-	}
-
-	return true, nil
-}
-
-// IsSuperset returns true if all items in the second set exist in the first.
-// This is useful when you want to check if one set contains all items
-// of another set.
+// IsProperSubset reports whether this set is a subset of the other set and
+// the two are not equal (this ⊊ other). A nil other is treated as the empty
+// set.
 //
 // Example usage:
 //
-//	s1 := set.New[int]()
-//	s1.Add(1, 2, 3, 4, 5)
+//	set.New(1, 2).IsProperSubset(set.New(1, 2, 3)) // true
+//	set.New(1, 2).IsProperSubset(set.New(1, 2))    // false
+func (s *Set[T]) IsProperSubset(other *Set[T]) bool {
+	if other == nil {
+		return false
+	}
+	if len(s.m) >= len(other.m) {
+		return false
+	}
+	return s.IsSubset(other)
+}
+
+// IsSuperset reports whether this set contains every element of the other set
+// (this ⊇ other). A set is a superset of itself. A nil other is treated as
+// the empty set, of which every set is a superset.
 //
-//	s2 := set.New[int]()
-//	s2.Add(1, 2, 3)
+// Example usage:
 //
-//	isSuperset := s1.IsSuperset(s2)  // isSuperset is true
-func (s *Set[T]) IsSuperset(set *Set[T]) bool {
-	r, _ := s.isSupersetWithContext(s.ctx, set)
-	return r
+//	set.New(1, 2, 3).IsSuperset(set.New(1, 2)) // true
+//	set.New(1, 2).IsSuperset(set.New(1, 2, 3)) // false
+//	set.New(1, 2).IsSuperset(set.New(1, 2))    // true
+func (s *Set[T]) IsSuperset(other *Set[T]) bool {
+	if other == nil {
+		return true
+	}
+	if len(other.m) > len(s.m) {
+		return false
+	}
+	for v := range other.m {
+		if _, ok := s.m[v]; !ok {
+			return false
+		}
+	}
+	return true
 }
 
 // IsSup is an alias for IsSuperset.
-func (s *Set[T]) IsSup(set *Set[T]) bool {
-	return s.IsSuperset(set)
+func (s *Set[T]) IsSup(other *Set[T]) bool {
+	return s.IsSuperset(other)
 }
 
-// Clear removes all items from the set.
+// IsProperSuperset reports whether this set is a superset of the other set
+// and the two are not equal (this ⊋ other). A nil other is treated as the
+// empty set.
 //
 // Example usage:
 //
-//	s := New[int]()
-//	s.Add(1, 2, 3)
-//
-//	s.Clear() // s is now empty
-func (s *Set[T]) Clear() {
-	s.heap = make(map[uint64]T)
+//	set.New(1, 2, 3).IsProperSuperset(set.New(1, 2)) // true
+//	set.New(1, 2).IsProperSuperset(set.New(1, 2))    // false
+func (s *Set[T]) IsProperSuperset(other *Set[T]) bool {
+	if other == nil {
+		return len(s.m) > 0
+	}
+	if len(s.m) <= len(other.m) {
+		return false
+	}
+	return s.IsSuperset(other)
 }
 
-// filterWithContext returns a new set with items that satisfy
-// the provided predicate.
-func (s *Set[T]) filterWithContext(
-	ctx context.Context,
-	fn func(item T) bool,
-) (*Set[T], error) {
-	// If the context is nil, create a new default context.
-	if ctx == nil {
-		ctx = context.Background()
+// IsDisjoint reports whether this set and the other set share no elements. A
+// nil other is treated as the empty set, which is disjoint from everything.
+//
+// Example usage:
+//
+//	set.New(1, 2).IsDisjoint(set.New(3, 4)) // true
+//	set.New(1, 2).IsDisjoint(set.New(2, 3)) // false
+func (s *Set[T]) IsDisjoint(other *Set[T]) bool {
+	if other == nil {
+		return true
 	}
 
-	result := New[T]()
-	for _, v := range s.heap {
-		if fn(v) {
-			if err := result.addWithContext(ctx, v); err != nil {
-				return New[T](), err
-			}
+	// Probe the larger set with the smaller one's elements.
+	small, large := s, other
+	if large.Len() < small.Len() {
+		small, large = large, small
+	}
+	for v := range small.m {
+		if _, ok := large.m[v]; ok {
+			return false
 		}
 	}
-
-	return result, nil
+	return true
 }
 
-// Filter returns a new set with items that satisfy the provided predicate.
+// Filter returns a new set with the elements that satisfy the predicate fn.
 //
 // Example usage:
 //
-//	s := set.New[int]()
-//	s.Add(1, 2, 3, 4, 5)
-//
-//	filtered := s.Filter(func(item int) bool {
-//		return item > 3
-//	}) // filtered contains 4, 5
+//	s := set.New(1, 2, 3, 4, 5)
+//	s.Filter(func(v int) bool { return v > 3 }) // 4, 5
 func (s *Set[T]) Filter(fn func(item T) bool) *Set[T] {
-	r, _ := s.filterWithContext(s.ctx, fn)
-	return r
+	result := &Set[T]{m: make(map[T]struct{})}
+	for v := range s.m {
+		if fn(v) {
+			result.m[v] = struct{}{}
+		}
+	}
+	return result
 }
 
-// anyWithContext returns true if any of the items in the set satisfy
-// the provided predicate.
-func (s *Set[T]) anyWithContext(
-	ctx context.Context,
-	fn func(item T) bool,
-) (bool, error) {
-	var wg sync.WaitGroup
-
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	// If the context is nil, create a new default context.
-	if ctx == nil {
-		ctx = context.Background()
-	}
-
-	// Will use context to stop the rest of the goroutines
-	// if the value has already been found.
-	//
-	// Create a separate context for stopping goroutines.
-	// Canceled outside and canceled when value is found are different states.
-	etx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	p := parallelTasks
-	found := &logicFoundValue{value: false}
-
-	// If the length of the slice is less than or equal to
-	// the minLoadPerGoroutine, then we do not need
-	// to use goroutines.
-	l := s.Len()
-	if l == 0 {
-		return false, nil
-	} else if l/p < minLoadPerGoroutine {
-		for _, b := range s.heap {
-			select {
-			case <-ctx.Done():
-				return false, ctx.Err()
-			default:
-			}
-
-			if fn(b) {
-				return true, nil
-			}
-		}
-
-		return false, nil
-	}
-
-	// The size of the set is too large, we need to split
-	// it into parts and execute it in goroutines.
-	chunkSize := l / p
-	v := s.Elements()
-	for i := 0; i < p; i++ {
-		wg.Add(1)
-
-		start := i * chunkSize
-		end := start + chunkSize
-		if i == p-1 {
-			end = len(v)
-		}
-
-		go func(start, end int) {
-			defer wg.Done()
-
-			for _, b := range v[start:end] {
-				// Check if the context has been cancelled.
-				select {
-				case <-ctx.Done():
-					// Canceled outside.
-					found.SetValue(false, ctx.Err())
-					return
-				case <-etx.Done():
-					// The result is already found in another goroutine.
-					return
-				default:
-				}
-
-				if fn(b) {
-					found.SetValue(true, nil)
-					cancel() // stop all other goroutines
-					return
-				}
-			}
-		}(start, end)
-	}
-
-	wg.Wait()
-	return found.GetValue()
-}
-
-// Any returns true if any of the items in the set satisfy
-// the provided predicate.
+// Map returns a new set with the result of applying fn to every element. The
+// result type is the same as the element type; to change the type use the
+// package-level Map function, since Go methods cannot introduce a new type
+// parameter.
+//
+// Note that mapping can shrink the set: if fn maps two distinct elements to
+// the same value, the result holds that value once.
 //
 // Example usage:
 //
-//	s := set.New[int]()
-//	s.Add(1, 2, 3)
+//	s := set.New(1, 2, 3)
+//	s.Map(func(v int) int { return v * 2 }) // 2, 4, 6
+func (s *Set[T]) Map(fn func(item T) T) *Set[T] {
+	result := &Set[T]{m: make(map[T]struct{}, len(s.m))}
+	for v := range s.m {
+		result.m[fn(v)] = struct{}{}
+	}
+	return result
+}
+
+// Reduce combines all elements into a single value of the element type by
+// repeatedly applying fn, starting from the zero value of T. The order in
+// which elements are visited is not specified, so for a well-defined result
+// fn should be associative and commutative (for example sum or max).
 //
-//	any := s.Any(func(item int) bool {
-//		return item > 2
-//	}) // any is true
+// When you need an accumulator of a different type, or an explicit initial
+// value, use the package-level Reduce or Fold functions.
+//
+// Example usage:
+//
+//	s := set.New(1, 2, 3)
+//	s.Reduce(func(acc, v int) int { return acc + v }) // 6
+func (s *Set[T]) Reduce(fn func(acc, item T) T) T {
+	var acc T
+	for v := range s.m {
+		acc = fn(acc, v)
+	}
+	return acc
+}
+
+// Any reports whether at least one element satisfies the predicate fn. It
+// returns false for an empty set. Iteration stops as soon as a match is
+// found.
+//
+// Example usage:
+//
+//	s := set.New(1, 2, 3)
+//	s.Any(func(v int) bool { return v > 2 }) // true
 func (s *Set[T]) Any(fn func(item T) bool) bool {
-	r, _ := s.anyWithContext(s.ctx, fn)
-	return r
+	for v := range s.m {
+		if fn(v) {
+			return true
+		}
+	}
+	return false
 }
 
-// allWithContext returns true if all of the items in the set satisfy
-// the provided predicate.
-func (s *Set[T]) allWithContext(
-	ctx context.Context,
-	fn func(item T) bool,
-) (bool, error) {
-	var wg sync.WaitGroup
-
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	// If the context is nil, create a new default context.
-	if ctx == nil {
-		ctx = context.Background()
-	}
-
-	// Will use context to stop the rest of the goroutines
-	// if the value has already been found.
-	//
-	// Create a separate context for stopping goroutines.
-	// Canceled outside and canceled when value is found are different states.
-	etx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	p := parallelTasks
-	found := &logicFoundValue{value: true}
-
-	// If the length of the slice is less than or equal to
-	// the minLoadPerGoroutine, then we do not need
-	// to use goroutines.
-	l := s.Len()
-	if l == 0 {
-		return false, nil
-	} else if l/p < minLoadPerGoroutine {
-		for _, b := range s.heap {
-			select {
-			case <-ctx.Done():
-				return false, ctx.Err()
-			default:
-			}
-
-			if !fn(b) {
-				return false, nil
-			}
-		}
-
-		return true, nil
-	}
-
-	// The size of the set is too large, we need to split
-	// it into parts and execute it in goroutines.
-	chunkSize := l / p
-	v := s.Elements()
-	for i := 0; i < p; i++ {
-		wg.Add(1)
-
-		start := i * chunkSize
-		end := start + chunkSize
-		if i == p-1 {
-			end = len(v)
-		}
-
-		go func(start, end int) {
-			defer wg.Done()
-
-			for _, b := range v[start:end] {
-				// Check if the context has been cancelled.
-				select {
-				case <-ctx.Done():
-					// Canceled outside.
-					found.SetValue(false, ctx.Err())
-					return
-				case <-etx.Done():
-					// The result is already found in another goroutine.
-					return
-				default:
-				}
-
-				if !fn(b) {
-					found.SetValue(false, nil)
-					cancel() // stop all other goroutines
-					return
-				}
-			}
-		}(start, end)
-	}
-
-	wg.Wait()
-	return found.GetValue()
-}
-
-// All returns true if all of the items in the set satisfy
-// the provided predicate.
+// All reports whether every element satisfies the predicate fn. It returns
+// true for an empty set (the condition holds vacuously). Iteration stops as
+// soon as an element fails the predicate.
 //
 // Example usage:
 //
-//	s := set.New[int]()
-//	s.Add(1, 2, 3)
-//
-//	all := s.All(func(item int) bool {
-//		return item > 2
-//	}) // all is false
+//	s := set.New(2, 4, 6)
+//	s.All(func(v int) bool { return v%2 == 0 }) // true
+//	set.New[int]().All(func(int) bool { return false }) // true (empty)
 func (s *Set[T]) All(fn func(item T) bool) bool {
-	r, _ := s.allWithContext(s.ctx, fn)
-	return r
+	for v := range s.m {
+		if !fn(v) {
+			return false
+		}
+	}
+	return true
 }
 
-// MarshalJSON implements json.Marshaler interface.
+// MarshalJSON implements the json.Marshaler interface. The set is encoded as a
+// JSON array of its elements; the order is not specified.
 func (s *Set[T]) MarshalJSON() ([]byte, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	elements := s.Elements()
-	return json.Marshal(elements)
+	return json.Marshal(s.Elements())
 }
 
-// UnmarshalJSON implements json.Unmarshaler interface.
+// UnmarshalJSON implements the json.Unmarshaler interface. It decodes a JSON
+// array and replaces the contents of the set with its elements, collapsing
+// duplicates.
 func (s *Set[T]) UnmarshalJSON(data []byte) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	var elements []T
 	if err := json.Unmarshal(data, &elements); err != nil {
-		return fmt.Errorf("failed to unmarshal set elements: %w", err)
+		return fmt.Errorf("set: failed to unmarshal elements: %w", err)
 	}
 
-	s.Clear()
+	if s.m == nil {
+		s.m = make(map[T]struct{}, len(elements))
+	} else {
+		clear(s.m)
+	}
 	s.Add(elements...)
 	return nil
 }

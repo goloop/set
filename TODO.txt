@@ -1,3 +1,6 @@
-- Optimize Union and SymmetricDifference
-- Reduce the number of allocations in the Delete operation
-- Improve performance of UnmarshalJSON
+Ideas under consideration (not committed):
+
+- SyncSet[T comparable]: a thread-safe wrapper around Set, if there is demand
+  for one. The core Set stays unsynchronized.
+- A key-based set for non-comparable elements, where the caller supplies a
+  key function: NewBy(func(T) K) with an internal map[K]T.

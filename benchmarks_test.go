@@ -1,133 +1,104 @@
 package set
 
 import (
-	"fmt"
-	"math/rand"
+	"strconv"
 	"testing"
 )
 
-func generateRandomInts(n int) []int {
-	result := make([]int, n)
-	for i := 0; i < n; i++ {
-		result[i] = rand.Intn(1000000)
-	}
-	return result
+var sizes = []int{10, 100, 1000, 10000}
+
+func benchName(prefix string, n int) string {
+	return prefix + "-" + strconv.Itoa(n)
 }
 
-func BenchmarkSetOperations(b *testing.B) {
-	sizes := []int{100, 1000, 10000, 100000}
+func seedInts(n int) []int {
+	out := make([]int, n)
+	for i := range out {
+		out[i] = i
+	}
+	return out
+}
 
-	for _, size := range sizes {
-		randomInts := generateRandomInts(size)
-
-		b.Run(fmt.Sprintf("New/size=%d", size), func(b *testing.B) {
+func BenchmarkAdd(b *testing.B) {
+	for _, n := range sizes {
+		data := seedInts(n)
+		b.Run(benchName("ints", n), func(b *testing.B) {
+			b.ReportAllocs()
 			for i := 0; i < b.N; i++ {
-				New(randomInts...)
+				s := NewWithCapacity[int](n)
+				s.Add(data...)
 			}
 		})
+	}
+}
 
-		set := New(randomInts...)
-
-		b.Run(fmt.Sprintf("Add/size=%d", size), func(b *testing.B) {
+func BenchmarkContains(b *testing.B) {
+	for _, n := range sizes {
+		s := New(seedInts(n)...)
+		b.Run(benchName("ints", n), func(b *testing.B) {
+			b.ReportAllocs()
 			for i := 0; i < b.N; i++ {
-				s := New[int]()
-				s.Add(randomInts...)
+				_ = s.Contains(i % n)
 			}
 		})
+	}
+}
 
-		b.Run(fmt.Sprintf("Contains/size=%d", size), func(b *testing.B) {
+func BenchmarkUnion(b *testing.B) {
+	for _, n := range sizes {
+		x := New(seedInts(n)...)
+		y := New(seedInts(n)...)
+		y.Add(seedInts(n)...) // overlap
+		b.Run(benchName("ints", n), func(b *testing.B) {
+			b.ReportAllocs()
 			for i := 0; i < b.N; i++ {
-				set.Contains(randomInts[i%size])
+				_ = x.Union(y)
 			}
 		})
+	}
+}
 
-		b.Run(fmt.Sprintf("Delete/size=%d", size), func(b *testing.B) {
+func BenchmarkIntersection(b *testing.B) {
+	for _, n := range sizes {
+		x := New(seedInts(n)...)
+		half := make([]int, n/2)
+		for i := range half {
+			half[i] = i
+		}
+		y := New(half...)
+		b.Run(benchName("ints", n), func(b *testing.B) {
+			b.ReportAllocs()
 			for i := 0; i < b.N; i++ {
-				s := New(randomInts...)
-				s.Delete(randomInts[:size/2]...)
+				_ = x.Intersection(y)
 			}
 		})
+	}
+}
 
-		b.Run(fmt.Sprintf("Union/size=%d", size), func(b *testing.B) {
-			other := New(generateRandomInts(size)...)
-			b.ResetTimer()
+func BenchmarkSymmetricDifference(b *testing.B) {
+	for _, n := range sizes {
+		x := New(seedInts(n)...)
+		shifted := make([]int, n)
+		for i := range shifted {
+			shifted[i] = i + n/2
+		}
+		y := New(shifted...)
+		b.Run(benchName("ints", n), func(b *testing.B) {
+			b.ReportAllocs()
 			for i := 0; i < b.N; i++ {
-				set.Union(other)
+				_ = x.SymmetricDifference(y)
 			}
 		})
+	}
+}
 
-		b.Run(fmt.Sprintf("Intersection/size=%d", size), func(b *testing.B) {
-			other := New(generateRandomInts(size)...)
-			b.ResetTimer()
+func BenchmarkSortedNatural(b *testing.B) {
+	for _, n := range sizes {
+		s := New(seedInts(n)...)
+		b.Run(benchName("ints", n), func(b *testing.B) {
+			b.ReportAllocs()
 			for i := 0; i < b.N; i++ {
-				set.Intersection(other)
-			}
-		})
-
-		b.Run(fmt.Sprintf("Difference/size=%d", size), func(b *testing.B) {
-			other := New(generateRandomInts(size)...)
-			b.ResetTimer()
-			for i := 0; i < b.N; i++ {
-				set.Difference(other)
-			}
-		})
-
-		b.Run(fmt.Sprintf("SymmetricDifference/size=%d", size), func(b *testing.B) {
-			other := New(generateRandomInts(size)...)
-			b.ResetTimer()
-			for i := 0; i < b.N; i++ {
-				set.SymmetricDifference(other)
-			}
-		})
-
-		b.Run(fmt.Sprintf("Copy/size=%d", size), func(b *testing.B) {
-			for i := 0; i < b.N; i++ {
-				set.Copy()
-			}
-		})
-
-		b.Run(fmt.Sprintf("Clear/size=%d", size), func(b *testing.B) {
-			for i := 0; i < b.N; i++ {
-				s := New(randomInts...)
-				s.Clear()
-			}
-		})
-
-		b.Run(fmt.Sprintf("MarshalJSON/size=%d", size), func(b *testing.B) {
-			for i := 0; i < b.N; i++ {
-				set.MarshalJSON()
-			}
-		})
-
-		marshaledData, _ := set.MarshalJSON()
-		b.Run(fmt.Sprintf("UnmarshalJSON/size=%d", size), func(b *testing.B) {
-			for i := 0; i < b.N; i++ {
-				s := New[int]()
-				s.UnmarshalJSON(marshaledData)
-			}
-		})
-
-		b.Run(fmt.Sprintf("Filter/size=%d", size), func(b *testing.B) {
-			for i := 0; i < b.N; i++ {
-				set.Filter(func(item int) bool {
-					return item%2 == 0
-				})
-			}
-		})
-
-		b.Run(fmt.Sprintf("Any/size=%d", size), func(b *testing.B) {
-			for i := 0; i < b.N; i++ {
-				set.Any(func(item int) bool {
-					return item > 500000
-				})
-			}
-		})
-
-		b.Run(fmt.Sprintf("All/size=%d", size), func(b *testing.B) {
-			for i := 0; i < b.N; i++ {
-				set.All(func(item int) bool {
-					return item >= 0
-				})
+				_ = Sorted(s)
 			}
 		})
 	}
