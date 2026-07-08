@@ -31,8 +31,24 @@ import (
 // Contains and Iter return empty results, and the first insertion allocates
 // the backing map. New and NewWithCapacity are still preferred when the
 // element count is known, so the map is sized up front.
+//
+// A nil *Set is treated as an empty set by every read-only method (Len,
+// Contains, Elements, Union, Equal, MarshalJSON, ...), mirroring how a nil map
+// reads as empty in Go. The mutating methods (Add, Delete, Clear, Overwrite,
+// Append, Pop, UnmarshalJSON) require a non-nil receiver and panic on nil, just
+// like writing to a nil map.
 type Set[T comparable] struct {
 	m map[T]struct{}
+}
+
+// items returns the backing map for read-only access, tolerating a nil
+// receiver so that reads on a nil *Set behave like reads on an empty set
+// instead of panicking. Ranging or indexing a nil map is well-defined in Go.
+func (s *Set[T]) items() map[T]struct{} {
+	if s == nil {
+		return nil
+	}
+	return s.m
 }
 
 // New creates a new Set containing the given items. Duplicate items collapse
@@ -169,7 +185,7 @@ func (s *Set[T]) Append(others ...*Set[T]) {
 //	s.Contains(1) // true
 //	s.Contains(5) // false
 func (s *Set[T]) Contains(item T) bool {
-	_, ok := s.m[item]
+	_, ok := s.items()[item]
 	return ok
 }
 
@@ -183,7 +199,7 @@ func (s *Set[T]) Contains(item T) bool {
 //	s.ContainsAll(1, 9) // false
 func (s *Set[T]) ContainsAll(items ...T) bool {
 	for _, v := range items {
-		if _, ok := s.m[v]; !ok {
+		if _, ok := s.items()[v]; !ok {
 			return false
 		}
 	}
@@ -200,7 +216,7 @@ func (s *Set[T]) ContainsAll(items ...T) bool {
 //	s.ContainsAny(8, 9) // false
 func (s *Set[T]) ContainsAny(items ...T) bool {
 	for _, v := range items {
-		if _, ok := s.m[v]; ok {
+		if _, ok := s.items()[v]; ok {
 			return true
 		}
 	}
@@ -214,7 +230,7 @@ func (s *Set[T]) ContainsAny(items ...T) bool {
 //	s := set.New(1, 2, 3, 4)
 //	s.Len() // 4
 func (s *Set[T]) Len() int {
-	return len(s.m)
+	return len(s.items())
 }
 
 // IsEmpty reports whether the set has no elements.
@@ -224,7 +240,7 @@ func (s *Set[T]) Len() int {
 //	set.New[int]().IsEmpty()  // true
 //	set.New(1).IsEmpty()      // false
 func (s *Set[T]) IsEmpty() bool {
-	return len(s.m) == 0
+	return len(s.items()) == 0
 }
 
 // Elements returns a slice with all elements of the set. The order is not
@@ -236,8 +252,8 @@ func (s *Set[T]) IsEmpty() bool {
 //	s := set.New(1, 2, 3, 4)
 //	e := s.Elements() // some permutation of 1, 2, 3, 4
 func (s *Set[T]) Elements() []T {
-	result := make([]T, 0, len(s.m))
-	for v := range s.m {
+	result := make([]T, 0, len(s.items()))
+	for v := range s.items() {
 		result = append(result, v)
 	}
 	return result
@@ -255,7 +271,7 @@ func (s *Set[T]) Elements() []T {
 //	}
 func (s *Set[T]) Iter() iter.Seq[T] {
 	return func(yield func(T) bool) {
-		for v := range s.m {
+		for v := range s.items() {
 			if !yield(v) {
 				return
 			}
@@ -292,8 +308,8 @@ func (s *Set[T]) Sorted(cmp func(a, b T) int) []T {
 //	s := set.New(1, 2, 3, 4, 5)
 //	s.Filtered(func(v int) bool { return v > 3 }) // 4 and 5
 func (s *Set[T]) Filtered(fn func(item T) bool) []T {
-	result := make([]T, 0, len(s.m))
-	for v := range s.m {
+	result := make([]T, 0, len(s.items()))
+	for v := range s.items() {
 		if fn(v) {
 			result = append(result, v)
 		}
@@ -327,8 +343,8 @@ func (s *Set[T]) Pop() (T, bool) {
 //	s := set.New(1, 2, 3)
 //	c := s.Copy() // c is an independent set 1, 2, 3
 func (s *Set[T]) Copy() *Set[T] {
-	result := &Set[T]{m: make(map[T]struct{}, len(s.m))}
-	for v := range s.m {
+	result := &Set[T]{m: make(map[T]struct{}, len(s.items()))}
+	for v := range s.items() {
 		result.m[v] = struct{}{}
 	}
 	return result
@@ -399,8 +415,8 @@ func (s *Set[T]) Inter(others ...*Set[T]) *Set[T] {
 //	s2 := set.New(3, 4, 5)
 //	s1.Difference(s2) // 1, 2
 func (s *Set[T]) Difference(others ...*Set[T]) *Set[T] {
-	result := &Set[T]{m: make(map[T]struct{}, len(s.m))}
-	for v := range s.m {
+	result := &Set[T]{m: make(map[T]struct{}, len(s.items()))}
+	for v := range s.items() {
 		inOther := false
 		for _, other := range others {
 			if other == nil {
@@ -465,12 +481,12 @@ func (s *Set[T]) Sdiff(others ...*Set[T]) *Set[T] {
 //	set.New(1, 2).Equal(set.New(1, 2, 3))    // false
 func (s *Set[T]) Equal(other *Set[T]) bool {
 	if other == nil {
-		return len(s.m) == 0
+		return len(s.items()) == 0
 	}
-	if len(s.m) != len(other.m) {
+	if len(s.items()) != len(other.m) {
 		return false
 	}
-	for v := range s.m {
+	for v := range s.items() {
 		if _, ok := other.m[v]; !ok {
 			return false
 		}
@@ -489,12 +505,12 @@ func (s *Set[T]) Equal(other *Set[T]) bool {
 //	set.New(1, 2).IsSubset(set.New(1, 2))    // true
 func (s *Set[T]) IsSubset(other *Set[T]) bool {
 	if other == nil {
-		return len(s.m) == 0
+		return len(s.items()) == 0
 	}
-	if len(s.m) > len(other.m) {
+	if len(s.items()) > len(other.m) {
 		return false
 	}
-	for v := range s.m {
+	for v := range s.items() {
 		if _, ok := other.m[v]; !ok {
 			return false
 		}
@@ -519,7 +535,7 @@ func (s *Set[T]) IsProperSubset(other *Set[T]) bool {
 	if other == nil {
 		return false
 	}
-	if len(s.m) >= len(other.m) {
+	if len(s.items()) >= len(other.m) {
 		return false
 	}
 	return s.IsSubset(other)
@@ -538,11 +554,11 @@ func (s *Set[T]) IsSuperset(other *Set[T]) bool {
 	if other == nil {
 		return true
 	}
-	if len(other.m) > len(s.m) {
+	if len(other.m) > len(s.items()) {
 		return false
 	}
 	for v := range other.m {
-		if _, ok := s.m[v]; !ok {
+		if _, ok := s.items()[v]; !ok {
 			return false
 		}
 	}
@@ -564,9 +580,9 @@ func (s *Set[T]) IsSup(other *Set[T]) bool {
 //	set.New(1, 2).IsProperSuperset(set.New(1, 2))    // false
 func (s *Set[T]) IsProperSuperset(other *Set[T]) bool {
 	if other == nil {
-		return len(s.m) > 0
+		return len(s.items()) > 0
 	}
-	if len(s.m) <= len(other.m) {
+	if len(s.items()) <= len(other.m) {
 		return false
 	}
 	return s.IsSuperset(other)
@@ -604,8 +620,8 @@ func (s *Set[T]) IsDisjoint(other *Set[T]) bool {
 //	s := set.New(1, 2, 3, 4, 5)
 //	s.Filter(func(v int) bool { return v > 3 }) // 4, 5
 func (s *Set[T]) Filter(fn func(item T) bool) *Set[T] {
-	result := &Set[T]{m: make(map[T]struct{}, len(s.m))}
-	for v := range s.m {
+	result := &Set[T]{m: make(map[T]struct{}, len(s.items()))}
+	for v := range s.items() {
 		if fn(v) {
 			result.m[v] = struct{}{}
 		}
@@ -626,8 +642,8 @@ func (s *Set[T]) Filter(fn func(item T) bool) *Set[T] {
 //	s := set.New(1, 2, 3)
 //	s.Map(func(v int) int { return v * 2 }) // 2, 4, 6
 func (s *Set[T]) Map(fn func(item T) T) *Set[T] {
-	result := &Set[T]{m: make(map[T]struct{}, len(s.m))}
-	for v := range s.m {
+	result := &Set[T]{m: make(map[T]struct{}, len(s.items()))}
+	for v := range s.items() {
 		result.m[fn(v)] = struct{}{}
 	}
 	return result
@@ -647,7 +663,7 @@ func (s *Set[T]) Map(fn func(item T) T) *Set[T] {
 //	s.Reduce(func(acc, v int) int { return acc + v }) // 6
 func (s *Set[T]) Reduce(fn func(acc, item T) T) T {
 	var acc T
-	for v := range s.m {
+	for v := range s.items() {
 		acc = fn(acc, v)
 	}
 	return acc
@@ -662,7 +678,7 @@ func (s *Set[T]) Reduce(fn func(acc, item T) T) T {
 //	s := set.New(1, 2, 3)
 //	s.Any(func(v int) bool { return v > 2 }) // true
 func (s *Set[T]) Any(fn func(item T) bool) bool {
-	for v := range s.m {
+	for v := range s.items() {
 		if fn(v) {
 			return true
 		}
@@ -680,7 +696,7 @@ func (s *Set[T]) Any(fn func(item T) bool) bool {
 //	s.All(func(v int) bool { return v%2 == 0 }) // true
 //	set.New[int]().All(func(int) bool { return false }) // true (empty)
 func (s *Set[T]) All(fn func(item T) bool) bool {
-	for v := range s.m {
+	for v := range s.items() {
 		if !fn(v) {
 			return false
 		}
@@ -697,7 +713,14 @@ func (s *Set[T]) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the json.Unmarshaler interface. It decodes a JSON
 // array and replaces the contents of the set with its elements, collapsing
 // duplicates.
+//
+// A JSON null is a no-op, leaving the set unchanged, as is conventional for
+// json.Unmarshaler implementations in the standard library.
 func (s *Set[T]) UnmarshalJSON(data []byte) error {
+	if string(data) == "null" {
+		return nil
+	}
+
 	var elements []T
 	if err := json.Unmarshal(data, &elements); err != nil {
 		return fmt.Errorf("set: failed to unmarshal elements: %w", err)

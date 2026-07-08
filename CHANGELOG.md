@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0]
+
+Minor release: nil-receiver safety and JSON null handling. Fully backward
+compatible.
+
+### Fixed
+- Read-only methods (`Len`, `Contains`, `Elements`, `Union`, `Equal`,
+  `MarshalJSON`, ...) no longer panic on a nil `*Set`; a nil set reads as empty,
+  mirroring how a nil map reads in Go. Mutating methods still require a non-nil
+  receiver.
+- `UnmarshalJSON` treats a JSON `null` as a no-op that leaves the set unchanged,
+  following the standard library's `json.Unmarshaler` convention, instead of
+  clearing the existing elements.
+
 ## [2.0.0]
 
 A complete redesign. The element model, the concurrency contract and the API

@@ -517,3 +517,66 @@ func TestIterEarlyBreak(t *testing.T) {
 		t.Fatalf("Iter early break visited %d, want 3", count)
 	}
 }
+
+// TestNilReceiverReadsAreEmpty verifies that a nil *Set reads as an empty set
+// from every read-only method rather than panicking, mirroring how a nil map
+// reads as empty in Go.
+func TestNilReceiverReadsAreEmpty(t *testing.T) {
+	var s *Set[int]
+	other := New(1, 2, 3)
+
+	if s.Len() != 0 {
+		t.Errorf("nil.Len() = %d, want 0", s.Len())
+	}
+	if !s.IsEmpty() {
+		t.Error("nil.IsEmpty() = false, want true")
+	}
+	if s.Contains(1) {
+		t.Error("nil.Contains(1) = true, want false")
+	}
+	if s.ContainsAll(1) || s.ContainsAny(1) {
+		t.Error("nil.ContainsAll/Any reported membership")
+	}
+	if len(s.Elements()) != 0 {
+		t.Errorf("nil.Elements() = %v, want empty", s.Elements())
+	}
+	if sorted := s.Sorted(func(a, b int) int { return a - b }); len(sorted) != 0 {
+		t.Errorf("nil.Sorted() = %v, want empty", sorted)
+	}
+	for range s.Iter() {
+		t.Error("nil.Iter() yielded an element")
+	}
+	if !s.Equal(New[int]()) {
+		t.Error("nil.Equal(empty) = false, want true")
+	}
+	if !s.IsSubset(other) {
+		t.Error("nil.IsSubset(other) = false, want true")
+	}
+	if u := s.Union(other); !u.Equal(other) {
+		t.Errorf("nil.Union(other) = %v, want %v", asSortedInt(u), asSortedInt(other))
+	}
+	if i := s.Intersection(other); !i.IsEmpty() {
+		t.Errorf("nil.Intersection(other) = %v, want empty", asSortedInt(i))
+	}
+	if d := s.Difference(other); !d.IsEmpty() {
+		t.Errorf("nil.Difference(other) = %v, want empty", asSortedInt(d))
+	}
+	if c := s.Copy(); !c.IsEmpty() {
+		t.Errorf("nil.Copy() = %v, want empty", asSortedInt(c))
+	}
+	if b, err := s.MarshalJSON(); err != nil || string(b) != "[]" {
+		t.Errorf("nil.MarshalJSON() = %q, %v, want \"[]\", nil", b, err)
+	}
+}
+
+// TestUnmarshalNullIsNoOp verifies that decoding a JSON null leaves the set
+// unchanged, following the standard library's json.Unmarshaler convention.
+func TestUnmarshalNullIsNoOp(t *testing.T) {
+	s := New(1, 2, 3)
+	if err := s.UnmarshalJSON([]byte("null")); err != nil {
+		t.Fatalf("UnmarshalJSON(null) returned error: %v", err)
+	}
+	if !s.Equal(New(1, 2, 3)) {
+		t.Errorf("UnmarshalJSON(null) changed the set to %v", asSortedInt(s))
+	}
+}
