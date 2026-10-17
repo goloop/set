@@ -41,8 +41,8 @@ func Collect[T comparable](seq iter.Seq[T]) *Set[T] {
 //	names := set.Map(s, func(u User) string { return u.Name })
 //	// names holds "John" and "Jane"
 func Map[T, R comparable](s *Set[T], fn func(item T) R) *Set[R] {
-	result := &Set[R]{m: make(map[R]struct{}, len(s.m))}
-	for v := range s.m {
+	result := &Set[R]{m: make(map[R]struct{}, len(s.items()))}
+	for v := range s.items() {
 		result.m[fn(v)] = struct{}{}
 	}
 	return result
@@ -63,7 +63,7 @@ func Map[T, R comparable](s *Set[T], fn func(item T) R) *Set[R] {
 //	// total is 50
 func Reduce[T comparable, R any](s *Set[T], fn func(acc R, item T) R) R {
 	var acc R
-	for v := range s.m {
+	for v := range s.items() {
 		acc = fn(acc, v)
 	}
 	return acc
@@ -83,7 +83,7 @@ func Reduce[T comparable, R any](s *Set[T], fn func(acc R, item T) R) R {
 //	// product is 24
 func Fold[T comparable, R any](s *Set[T], initial R, fn func(acc R, item T) R) R {
 	acc := initial
-	for v := range s.m {
+	for v := range s.items() {
 		acc = fn(acc, v)
 	}
 	return acc

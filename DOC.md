@@ -291,3 +291,7 @@ tests or serialized output.
 
 **Preallocate when you know the size.** `NewWithCapacity(n, …)` avoids repeated
 map growth when adding many elements.
+
+## Release v2.1.2
+
+Handle nil sets consistently and intersect from the smallest input.

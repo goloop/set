@@ -1,6 +1,7 @@
 package set
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"iter"
@@ -377,26 +378,30 @@ func (s *Set[T]) Union(others ...*Set[T]) *Set[T] {
 //	s2 := set.New(3, 4, 5)
 //	s1.Intersection(s2) // 3
 func (s *Set[T]) Intersection(others ...*Set[T]) *Set[T] {
-	result := s.Copy()
+	if len(others) == 0 {
+		return s.Copy()
+	}
+	smallest := s
 	for _, other := range others {
-		if other == nil {
-			result.Clear()
-			break
+		if other.Len() < smallest.Len() {
+			smallest = other
 		}
-
-		// Iterate the smaller side, probe the larger one.
-		small, large := result, other
-		if large.Len() < small.Len() {
-			small, large = large, small
+	}
+	result := &Set[T]{m: make(map[T]struct{}, smallest.Len())}
+	for v := range smallest.items() {
+		if !s.Contains(v) {
+			continue
 		}
-
-		next := &Set[T]{m: make(map[T]struct{}, small.Len())}
-		for v := range small.m {
-			if _, ok := large.m[v]; ok {
-				next.m[v] = struct{}{}
+		present := true
+		for _, other := range others {
+			if !other.Contains(v) {
+				present = false
+				break
 			}
 		}
-		result = next
+		if present {
+			result.m[v] = struct{}{}
+		}
 	}
 	return result
 }
@@ -605,7 +610,7 @@ func (s *Set[T]) IsDisjoint(other *Set[T]) bool {
 	if large.Len() < small.Len() {
 		small, large = large, small
 	}
-	for v := range small.m {
+	for v := range small.items() {
 		if _, ok := large.m[v]; ok {
 			return false
 		}
@@ -717,7 +722,7 @@ func (s *Set[T]) MarshalJSON() ([]byte, error) {
 // A JSON null is a no-op, leaving the set unchanged, as is conventional for
 // json.Unmarshaler implementations in the standard library.
 func (s *Set[T]) UnmarshalJSON(data []byte) error {
-	if string(data) == "null" {
+	if bytes.Equal(bytes.TrimSpace(data), []byte("null")) {
 		return nil
 	}
 

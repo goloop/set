@@ -82,3 +82,7 @@ Contributions are welcome. Please run `go test ./...`, `go vet ./...` and
 ## License
 
 `set` is released under the MIT License. See [LICENSE](LICENSE).
+
+## Release v2.1.2
+
+Handle nil sets consistently and intersect from the smallest input.
